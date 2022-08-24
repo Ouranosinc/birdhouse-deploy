@@ -16,6 +16,68 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.22.0](https://github.com/bird-house/birdhouse-deploy/tree/1.22.0) (2022-08-24)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes:
+- Geoserver: Adds `./optional-components/test-geoserver-secured-access`, to test Twitcher-protected access to Geoserver
+  
+  Relevant changes:
+  - New Provider (Magpie) : geoserver-secured
+  - New Location (Proxy) : /geoserver-secured
+  - Copied current WFS GetCapabilities and DescribeFeatureType permissions to new Provider
+
+[1.21.1](https://github.com/bird-house/birdhouse-deploy/tree/1.21.1) (2022-08-24)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- birdhouse-deploy: fix invalid `canarie-api-full-monitoring` endpoints adding double `/` when substituting variables.
+- birdhouse-deploy: add optional variables `MAGPIE_LOG_LEVEL` and `TWITCHER_LOG_LEVEL` (both `INFO` by default) to 
+  allow instead to customize reported details by instances for debugging purposes. Note that setting `DEBUG` will leak
+  sensible details in their logs and should be reserved only for testing environments.
+
+[1.21.0](https://github.com/bird-house/birdhouse-deploy/tree/1.21.0) (2022-08-19)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Cowbird: add new service [Ouranosinc/cowbird](https://github.com/Ouranosinc/cowbird/) to the stack.
+
+  ### Relevant changes
+  * Cowbird can be integrated to the instance using [components/cowbird](./birdhouse/components/cowbird) 
+    when added to in ``EXTRA_CONF_DIRS`` in the ``env.local`` variable definitions.
+  * Offers syncing operations between various other *birds* in order to apply user/group permissions between
+    corresponding files, granting access to them seamlessly through distinct services.
+  * Allows event and callback triggers to sync permissions and volume paths between API endpoints and local storages.
+
+- Nginx: add missing `X-Forwarded-Host` header to allow `Twitcher` to report the proper server host location when the
+  service to be accessed uses an internal Docker network reference through the service private URL defined in `Magpie`.
+
+- birdhouse-deploy: fix missing `GEOSERVER_ADMIN_USER` variable templating 
+  from [pavics-compose.sh](./birdhouse/pavics-compose.sh).
+
+[1.20.4](https://github.com/bird-house/birdhouse-deploy/tree/1.20.4) (2022-08-19)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes:
+
+- Weaver: update `weaver` component default version to [4.22.0](https://github.com/crim-ca/weaver/tree/4.22.0).
+
+  ### Relevant changes
+  * Minor improvements to facilitate retrieval of XML and JSON Process definition and their seamless execution with 
+    XML or JSON request contents using either WPS or *OGC API - Processes* REST endpoints interchangeably.
+  * Fixes to WPS remote provider parsing registered in Weaver to successfully perform the relevant process executions.
+  * Add WPS remote provider retry conditions to handle known problematic cases during process execution (on remote)
+    that can lead to sporadic failures of the monitored job. When possible, retried submission leading to successful
+    execution will result in the monitored job to complete successfully and transparently to the user. Relevant errors
+    and retry attempts are provided in the job logs.
+  * Add WPS remote provider status exception response as XML message from the failed remote execution within the
+    monitored local job logs to help users understand how to resolve any encountered issue on the remote service.
+  * Bump version ``OWSLib==0.26.0`` to fix ``processVersion`` attribute resolution from WPS remote provider definition
+    to populate ``Process.version`` property employed in converted `Process` description to `OGC API - Process` schema
+    (relates to `geopython/OWSLib#794 <https://github.com/geopython/OWSLib/pull/794>`_).
+
 [1.20.3](https://github.com/bird-house/birdhouse-deploy/tree/1.20.3) (2022-08-18)
 ------------------------------------------------------------------------------------------------------------------
 

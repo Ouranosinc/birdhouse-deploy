@@ -16,6 +16,37 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.22.2](https://github.com/bird-house/birdhouse-deploy/tree/1.22.2) (2022-09-19)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes:
+
+- `deploy-data`: allow `post_actions` to vary depending on files changed on subsequent run
+
+  Useful for `post_actions` to know the git version change between the current
+  and the previous run and which files are impacted.
+
+  Actions can perform extra git commands if needed or simply used the
+  provide git diff output and/or rsync output to decide what to do next.
+
+  **Non-breaking changes**
+  - `deploy-data` script: add new vars `GIT_PREVIOUS_COMMIT_HASH`, `GIT_NEW_COMMIT_HASH`, `GIT_CHANGED_FILES`,
+    `RSYNC_OUTPUT`, accessible to `post_actions` scripts.
+
+
+[1.22.1](https://github.com/bird-house/birdhouse-deploy/tree/1.22.1) (2022-09-01)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes:
+
+- birdhouse-deploy: fix bump versioning methodology to auto-update `releaseTime` accordingly.
+  
+  ### Relevant changes
+  * Adds `Makefile` to run basic DevOps maintenance commands on the repository.
+  * Adds `RELEASE.txt` with the active release tag and datetime.
+  * Replace `now:` directives by `utcnow:` to report time properly according to employed ISO format.
+  * Update contribution guidelines regarding methodology to create a new revision.
+
 [1.22.0](https://github.com/bird-house/birdhouse-deploy/tree/1.22.0) (2022-08-24)
 ------------------------------------------------------------------------------------------------------------------
 

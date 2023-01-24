@@ -16,6 +16,21 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.22.8](https://github.com/bird-house/birdhouse-deploy/tree/1.22.8) (2023-01-24)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes:
+
+- Weaver: fix post script to be compatible with autodeploy
+
+  Autodeploy runs inside its own docker container and `curl` is not available.
+  Therefore Weaver post script should be using `curl` from a docker image
+  instead of locally installed flavor.
+
+- Jupyter: fix the Docker Spawner `start` function to support JupyterHub image selection names 
+  that use the `<name>:<version>` format.
+
+
 [1.22.7](https://github.com/bird-house/birdhouse-deploy/tree/1.22.7) (2022-12-23)
 ------------------------------------------------------------------------------------------------------------------
 

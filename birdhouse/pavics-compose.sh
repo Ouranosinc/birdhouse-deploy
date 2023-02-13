@@ -75,6 +75,7 @@ OPTIONAL_VARS='
   $MAGPIE_SMTP_PASSWORD
   $MAGPIE_LOG_LEVEL
   $TWITCHER_LOG_LEVEL
+  $TWITCHER_VERIFY_PATH
   $VERIFY_SSL
   $JUPYTER_DEMO_USER
   $JUPYTER_LOGIN_BANNER_TOP_SECTION
@@ -87,6 +88,7 @@ OPTIONAL_VARS='
   $AUTODEPLOY_EXTRA_SCHEDULER_JOBS
   $PROXY_READ_TIMEOUT_VALUE
   $PROXY_ROOT_LOCATION
+  $SECURE_DATA_PROXY_AUTH_INCLUDE
 '
 
 # we switch to the real directory of the script, so it still works when used from $PATH
@@ -99,37 +101,10 @@ cd $(dirname $(readlink -f $0 || realpath $0))
 # container and manually from the host.
 COMPOSE_DIR="`pwd`"
 
-. ./default.env
+. "$COMPOSE_DIR/read-configs.include.sh"
+read_configs
 
-# we source local configs, if present
-# we don't use usual .env filename, because docker-compose uses it
-[ -f env.local ] && . ./env.local
 . ./scripts/get-components-json.include.sh
-
-for adir in ${EXTRA_CONF_DIRS}; do
-  if [ ! -e "$adir" ]; then
-    # Do not exit to not break unattended autodeploy since no human around to
-    # fix immediately.
-    # The new adir with typo will not be active but at least all the existing
-    # will still work.
-    echo "WARNING: '$adir' in EXTRA_CONF_DIRS does not exist" 1>&2
-  fi
-  COMPONENT_DEFAULT_ENV="$adir/default.env"
-  if [ -f "$COMPONENT_DEFAULT_ENV" ]; then
-    echo "reading '$COMPONENT_DEFAULT_ENV'"
-    . "$COMPONENT_DEFAULT_ENV"
-  fi
-done
-
-# Re-read env.local to make sure it can override ALL defaults from all
-# components.
-[ -f env.local ] && . ./env.local
-
-for i in ${DELAYED_EVAL}; do
-  v="`eval "echo \\$${i}"`"
-  eval 'export ${i}="`eval "echo ${v}"`"'
-  echo "delayed eval '`env |grep ${i}=`'"
-done
 
 for i in ${VARS}
 do

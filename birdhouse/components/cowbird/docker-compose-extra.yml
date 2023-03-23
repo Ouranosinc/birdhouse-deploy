@@ -17,9 +17,7 @@ services:
       # SSL verification should be enabled for secured connections
       COWBIRD_SSL_VERIFY: "true"
       COWBIRD_CONFIG_PATH: /opt/local/src/cowbird/config/cowbird.yml
-      WORKSPACE_DIR: /user_workspaces
-      GEOSERVER_ADMIN_USER: ${GEOSERVER_ADMIN_USER}
-      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
+      WORKSPACE_DIR: /${USER_WORKSPACES}
     links:
       - "${COWBIRD_MONGODB_SERVICE}"
     networks:
@@ -30,7 +28,7 @@ services:
     volumes:
       - ./components/cowbird/config/cowbird/config.yml:/opt/local/src/cowbird/config/cowbird.yml
       - ./components/cowbird/config/cowbird/cowbird.ini:/opt/local/src/cowbird/config/cowbird.ini
-      - "${DATA_PERSIST_ROOT}/user_workspaces:/user_workspaces"
+      - "${DATA_PERSIST_ROOT}/${USER_WORKSPACES}:/${USER_WORKSPACES}"
     restart: always
     logging: *default-logging
 
@@ -40,12 +38,7 @@ services:
     environment:
       COWBIRD_SSL_VERIFY: "true"
       COWBIRD_CONFIG_PATH: /opt/local/src/cowbird/config/cowbird.yml
-      WORKSPACE_DIR: /user_workspaces
-      GEOSERVER_ADMIN_USER: ${GEOSERVER_ADMIN_USER}
-      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
-    env_file:
-      # user/password for admin session to perform permission sync updates
-      - ./config/postgres-magpie/credentials.env
+      WORKSPACE_DIR: /${USER_WORKSPACES}
     links:
       - "${COWBIRD_MONGODB_SERVICE}"
     networks:
@@ -60,28 +53,6 @@ services:
       #   file 'celeryconfig' must be located directly under the application path and be named exactly like this,
       #   otherwise 'pyramid_celery' cannot find it (see https://github.com/sontek/pyramid_celery/pull/89)
       - ./components/cowbird/config/cowbird/celeryconfig.py:/opt/local/src/cowbird/celeryconfig.py
-      - "${DATA_PERSIST_ROOT}/user_workspaces:/user_workspaces"
+      - "${DATA_PERSIST_ROOT}/${USER_WORKSPACES}:/${USER_WORKSPACES}"
     restart: always
     logging: *default-logging
-
-  # extend proxy with endpoint and config for Cowbird API access
-  proxy:
-    volumes:
-      - ./components/cowbird/conf.extra-service.d:/etc/nginx/conf.extra-service.d/cowbird:ro
-    links:
-      - cowbird
-
-  # extend Magpie permissions to grant access to Cowbird API via secured Twitcher proxy
-  magpie:
-    links:
-      # must have link to send webhook requests directly though internal network
-      - cowbird
-    volumes:
-      # NOTE:
-      #   Although the file uses the combined "config.yml" format, it is very important to pass it as independent and
-      #   duplicate references for providers/permissions/webhooks config files. This is because 'MAGPIE_CONFIG_PATH' is
-      #   not used to allow parsing additive per-component config files for each extendable service, using loading of
-      #   all configuration files found in mounted directories.
-      - ./components/cowbird/config/magpie/config.yml:/opt/local/src/magpie/config/permissions/cowbird.yml:ro
-      - ./components/cowbird/config/magpie/config.yml:/opt/local/src/magpie/config/providers/cowbird.yml:ro
-      - ./components/cowbird/config/magpie/config.yml:/opt/local/src/magpie/config/webhooks/cowbird.yml:ro

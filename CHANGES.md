@@ -16,6 +16,76 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.24.0](https://github.com/bird-house/birdhouse-deploy/tree/1.24.0) (2023-03-22)
+------------------------------------------------------------------------------------------------------------------
+## Fixes
+- The default stack was not configurable. This meant that if someone wanted to deploy a 
+  subset of the default stack there was no good way of configuring birdhouse-deploy to run
+  this subset only. 
+
+  Previously, additional components could be added to the stack (ex: weaver, cowbird, etc.)
+  by adding them to the `EXTRA_CONF_DIRS` variable. This change extends this functionality
+  to all components. 
+
+  For backwards compatibility, all components that were in the original default stack are now
+  listed in the `DEFAULT_CONF_DIRS` variable (in `birdhouse/default.env`). To run a subset of the
+  original stack, update `DEFAULT_CONF_DIRS` to only include the configuration directories for
+  the desired components.
+
+  The components that will be added to the stack are only those whose configuration directory
+  is listed in either `DEFAULT_CONF_DIRS` or `EXTRA_CONF_DIRS`. Note that some components are
+  dependent on others to run and will automatically add the other components to the stack as 
+  a dependency. For example, twitcher requires magpie so if you only specify twitcher, magpie
+  will be added to the stack as well. To inspect component dependencies, look at the 
+  `COMPONENT_DEPENDENCIES` environment variable that is extended in some `default.env` files.
+  For example, `birdhouse/config/twitcher/default.env` contains:
+
+  ```shell
+  COMPONENT_DEPENDENCIES="
+    $COMPONENT_DEPENDENCIES
+    ./config/magpie
+  ```
+
+  Components can also have optional dependencies. These are additional configuration options to
+  run if both components are deployed in the stack at the same time. These are defined in the
+  `config/*/docker-compose-extra.yml` files where the `*` refers to another component that _could be_
+  deployed. For example, `birdhouse/config/raven/config/magpie/docker-compose-extra.yml` contains
+  additional configuration settings for the raven docker service that only apply if magpie is
+  also deployed. This relaxes some dependencies between components and allows more flexibility
+  when choosing what parts of the stack to deploy.
+
+## Changes:
+
+- Cowbird: Updated Cowbird config for user workspaces and for working callbacks to Magpie.
+
+  When enabling Cowbird, the config will now mount a different working directory with JupyterHub, which 
+  corresponds to the user workspaces created with Cowbird. These workspaces will use symlinks to the Jupyterhub 
+  data directories.
+
+  For example, we have the original directory, which is still mounted by default by JupyterHub, which contains 
+  the user's notebooks :
+![image](https://user-images.githubusercontent.com/36516122/223465560-ea4a7d6f-807d-49ae-8500-49a6e6ed677a.png)
+
+  If Cowbird is enabled, JupyterHub mounts Cowbird's workspace instead, which has a symlink to the other dir :
+![image](https://user-images.githubusercontent.com/36516122/223465960-ce81e829-b703-4374-b059-685b0e684a57.png)
+
+  Cowbird's workspace can also contain other files related to other services.
+  Cowbird's workspace directory is defined by the added environment variable `USER_WORKSPACES`.
+
+- JupyterHub: Updated config to support Cowbird, which uses a different working directory.
+
+  JupyterHub now mounts the variable `WORKSPACE_DIR` when starting a JupyterLab instance. It will refer to the 
+  original JupyterHub data directory by default, and if Cowbird is activated, it will be overridden to refer 
+  to Cowbird's workspace instead.
+
+  In JupyterHub with Cowbird enabled, the `writable-workspace` is the Cowbird user's workspace :
+![image](https://user-images.githubusercontent.com/36516122/223800065-0e0ab578-4e67-4d21-8d7c-552c87ceea41.png)
+
+  When we open the notebooks dir, it displays the files found at the symlink's source :
+![image](https://user-images.githubusercontent.com/36516122/223800540-769d50a2-4ce8-480f-b75d-c6d4e29dead1.png)
+
+- Updated eo and nlp images to latest version in the `env.local.example` config.
+
 [1.23.3](https://github.com/bird-house/birdhouse-deploy/tree/1.23.3) (2023-02-17)
 ------------------------------------------------------------------------------------------------------------------
 

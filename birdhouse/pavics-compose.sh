@@ -73,11 +73,6 @@ then
   echo "         It it suggested to set it to 1, otherwise the pavicscrawler may fail"
 fi
 
-if [ -z "$PAVICS_FQDN_PUBLIC" ]; then
-  # default value before instantiating template configs
-  export PAVICS_FQDN_PUBLIC="$PAVICS_FQDN"
-fi
-
 export AUTODEPLOY_EXTRA_REPOS_AS_DOCKER_VOLUMES=""
 for adir in $AUTODEPLOY_EXTRA_REPOS; do
   # 4 spaces in front of '--volume' is important
@@ -104,31 +99,9 @@ if [ x"$1" = x"up" ]; then
   done
 fi
 
-COMPOSE_CONF_LIST="-f docker-compose.yml"
-for adir in $ALL_CONF_DIRS; do
-  if [ -f "$adir/docker-compose-extra.yml" ]; then
-    COMPOSE_CONF_LIST="${COMPOSE_CONF_LIST} -f $adir/docker-compose-extra.yml"
-  fi
-done
-CONFIGURED_COMPONENTS=''
-for adir in $ALL_CONF_DIRS; do
-  CONFIGURED_COMPONENTS="
-    $CONFIGURED_COMPONENTS
-    $(basename $adir)"
-done
-
-for adir in $ALL_CONF_DIRS; do
-  for conf_dir in "$adir"/config/*; do
-    service_name=$(basename "$conf_dir")
-    extra_compose="$conf_dir/docker-compose-extra.yml"
-    if [ -f "$extra_compose" ]; then
-      if echo "$CONFIGURED_COMPONENTS" | grep -q "$service_name"; then
-        COMPOSE_CONF_LIST="${COMPOSE_CONF_LIST} -f $extra_compose"
-      fi
-    fi
-  done
-done
-echo "COMPOSE_CONF_LIST=${COMPOSE_CONF_LIST}"
+create_compose_conf_list # this sets COMPOSE_CONF_LIST
+echo "COMPOSE_CONF_LIST="
+echo ${COMPOSE_CONF_LIST} | tr ' ' '\n' | grep -v '^-f'
 
 # the PROXY_SECURE_PORT is a little trick to make the compose file invalid without the usage of this wrapper script
 PROXY_SECURE_PORT=443 HOSTNAME=${PAVICS_FQDN} docker-compose ${COMPOSE_CONF_LIST} $*

@@ -17,6 +17,25 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.26.2](https://github.com/bird-house/birdhouse-deploy/tree/1.26.2) (2023-05-25)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+- Update Zenodo config
+  *  Add Misha to creators
+  *  Add birdhouse community
+
+- Licence: update copyright line with year and ownership
+
+
+[1.26.1](https://github.com/bird-house/birdhouse-deploy/tree/1.26.1) (2023-04-26)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Zenodo: A configuration file for [Zenodo](https://zenodo.org/) was added to the source code, listing all contributing authors on the *birdhouse-deploy* repository.
+
+
 [1.26.0](https://github.com/bird-house/birdhouse-deploy/tree/1.26.0) (2023-04-20)
 ------------------------------------------------------------------------------------------------------------------
 

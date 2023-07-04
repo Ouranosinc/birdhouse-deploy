@@ -17,6 +17,36 @@
 
 [//]: # (list changes here, using '-' for each new entry, remove this when items are added)
 
+[1.26.11](https://github.com/bird-house/birdhouse-deploy/tree/1.26.11) (2023-07-04)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+- Components endpoint now returns valid json
+
+  The JSON string reported by the `/components/` path was not valid JSON due to a misconfigured regular expression
+  used to generate the content. The issue was that integers were not being properly parsed by the regular expression
+  meaning that paths that contained integers other than 0 were not recognized as valid paths.
+
+  This fixes https://github.com/bird-house/birdhouse-deploy/issues/339
+
+[1.26.10](https://github.com/bird-house/birdhouse-deploy/tree/1.26.10) (2023-07-04)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Move canarie-api configuration for cowbird from proxy to canarie-api config directory
+  - The canarie-api configuration for cowbird was being loaded whenever the proxy component was enabled instead
+    of when the canarie-api component was enabled. Since these components can now be enabled separately, the
+    configuration has to be moved to ensure that canarie-api configuration files aren't unintentionally mounted
+    to a container that is just running an nginx proxy.
+
+[1.26.9](https://github.com/bird-house/birdhouse-deploy/tree/1.26.9) (2023-07-04)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Fix Cowbird's `sync_permissions` config which used invalid Magpie service types.
+
 [1.26.8](https://github.com/bird-house/birdhouse-deploy/tree/1.26.8) (2023-06-22)
 ------------------------------------------------------------------------------------------------------------------
 

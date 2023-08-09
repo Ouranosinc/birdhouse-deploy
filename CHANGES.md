@@ -15,7 +15,52 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
-[//]: # (list changes here, using '-' for each new entry, remove this when items are added)
+## Changes
+- Adds [STAC](https://github.com/crim-ca/stac-app) to the stack (optional) when ``./components/stac`` 
+  is added to ``EXTRA_CONF_DIRS``. For more details, refer to 
+  [STAC Component](https://github.com/bird-house/birdhouse-deploy/blob/master/birdhouse/components/README.rst#STAC)
+  Following happens when enabled:
+    
+  * Service ``stac`` (API) gets added with endpoints ``/twitcher/ows/proxy/stac`` and ``/stac``.
+    
+  * STAC catalog can be explored via the ``stac-browser`` component, available under ``/stac-browser``.
+      
+  * Image [crim-ca/stac-app](https://github.com/crim-ca/stac-app) is a STAC implementation based on 
+  [stac-utils/stac-fastapi](https://github.com/stac-utils/stac-fastapi).
+
+  * Image [crim-ca/stac-browser](https://github.com/crim-ca/stac-browser) is a fork of 
+  [radiantearth/stac-browser](https://github.com/radiantearth/stac-browser) in order to have the capacity to build 
+  the Docker container. The image reference will change when the 
+  [stac-browser PR related to Dockerfile](https://github.com/bird-house/birdhouse-deploy/issues/346) will have been 
+  merged.
+      
+  * Adds `Magpie` permissions and service for `stac` endpoints.
+  
+- Adds [stac-populator](https://github.com/crim-ca/stac-populator) to populate STAC catalog with sample collection 
+  items via [CEDA STAC Generator](https://github.com/cedadev/stac-generator), employed in sample 
+  [CMIP Dataset Ingestion Workflows](https://github.com/cedadev/stac-generator-example/tree/master/conf).
+
+- Adds ``optional-components/stac-public-access`` to give public access to the STAC catalog.
+
+[1.27.1](https://github.com/bird-house/birdhouse-deploy/tree/1.27.1) (2023-07-10)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+- Add Magpie webhook definitions for permission creation and deletion cases to be processed by Cowbird.
+- Add `USER_WORKSPACE_UID` and `USER_WORKSPACE_GID` env variables to manage ownership of the user workspaces used by
+  Cowbird, JupyterHub and others.
+- Update `magpie` service from [3.31.0](https://github.com/Ouranosinc/Magpie/tree/3.31.0)
+  to [3.34.0](https://github.com/Ouranosinc/Magpie/tree/3.34.0)
+- Update `cowbird` service from [1.1.1](https://github.com/Ouranosinc/cowbird/tree/1.1.1)
+  to [1.2.0](https://github.com/Ouranosinc/cowbird/tree/1.2.0)
+
+[1.27.0](https://github.com/bird-house/birdhouse-deploy/tree/1.27.0) (2023-07-06)
+------------------------------------------------------------------------------------------------------------------
+
+- Deprecate unused/unmaintained components
+
+  Move unused and unmaintained components to a separate [`deprecated-components/`](birdhouse/deprecated-components)
+  subdirectory and remove them from the `DEFAULT_CONF_DIRS` list if required.
 
 [1.26.11](https://github.com/bird-house/birdhouse-deploy/tree/1.26.11) (2023-07-04)
 ------------------------------------------------------------------------------------------------------------------
@@ -167,7 +212,6 @@
   *  Add birdhouse community
 
 - Licence: update copyright line with year and ownership
-
 
 [1.26.1](https://github.com/bird-house/birdhouse-deploy/tree/1.26.1) (2023-04-26)
 ------------------------------------------------------------------------------------------------------------------

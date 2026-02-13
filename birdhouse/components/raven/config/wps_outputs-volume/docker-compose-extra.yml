@@ -1,0 +1,4 @@
+services:
+  raven:
+    volumes:
+      - wps_outputs:/data/wpsoutputs

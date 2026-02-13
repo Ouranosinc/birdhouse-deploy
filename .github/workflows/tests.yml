@@ -1,21 +1,31 @@
 name: Unit tests
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  # For a given workflow, if we push to the same branch, cancel all previous builds on that branch except on master.
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
   test:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up python for testing
-        uses: actions/setup-python@v4
+      - name: Checkout Repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python3
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
         with:
           python-version: "3.11"
           cache: 'pip'
-      - name: Install python test dependencies
+      - name: Install Python CI Dependencies
         run: |
-          pip install -r ./tests/requirements.txt
+          python -m pip install --require-hashes -r ./tests/requirements.txt
       - name: Test with pytest
         run: |
-          pytest ./tests/
+          python -m pytest ./tests/unit

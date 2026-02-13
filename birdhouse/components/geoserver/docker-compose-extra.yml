@@ -1,0 +1,35 @@
+services:
+  geoserver:
+    image: ${GEOSERVER_IMAGE}
+    container_name: geoserver
+    environment:
+      STABLE_EXTENSIONS: ${GEOSERVER_STABLE_EXTENSIONS}
+      COMMUNITY_EXTENSIONS: ${GEOSERVER_COMMUNITY_EXTENSIONS}
+      GEOSERVER_ADMIN_USER: ${GEOSERVER_ADMIN_USER}
+      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD}
+      # fix "WARNING: Illegal reflective access by org.geotools.image.ImageWorker" in `docker logs geoserver`
+      JAVA_OPTS: --add-exports=java.desktop/com.sun.imageio.plugins.jpeg=ALL-UNNAMED
+      MAXIMUM_MEMORY: 8G
+      # https://github.com/kartoza/docker-geoserver#proxy-base-url
+      HTTP_PROXY_NAME: ${BIRDHOUSE_FQDN_PUBLIC}
+      HTTP_SCHEME: ${BIRDHOUSE_PROXY_SCHEME}
+    volumes:
+      # run deployment/fix-geoserver-data-dir-perm on existing
+      # GEOSERVER_DATA_DIR to match user geoserveruser inside docker image
+      # only needed for versions before pavics/geoserver:2.25.2--v2024.06.25-kartoza
+      - ${GEOSERVER_DATA_DIR}:/opt/geoserver/data_dir
+    links:
+      - postgis
+    restart: always
+    healthcheck:
+      test: curl --fail --silent http://localhost:8080/geoserver || exit 1
+      interval: 1m30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+
+  postgis:
+    image: pavics/postgis:2.2
+    container_name: postgis
+    restart: always

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: postgres
+    # ports:  # should not be exposed directly, enable 'optional-components/database-external-ports' as needed
+    volumes:
+      - ${POSTGRES_DATA_DIR}:/var/lib/postgresql/data/pgdata
+      - ./components/postgres/postgres-setup.sh:/postgres-setup.sh
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DATABASES_TO_CREATE: ${POSTGRES_DATABASES_TO_CREATE}
+    env_file:
+      - ./components/postgres/credentials.env
+    restart: always
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "$${POSTGRES_USER}", "-d", "$${POSTGRES_DB}"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s

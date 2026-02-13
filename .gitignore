@@ -3,6 +3,7 @@ birdhouse/env.local
 birdhouse/certkey.pem
 birdhouse/cert.pem
 birdhouse/key.pem
+birdhouse/restic.env
 
 ## Deployment
 vagrant_variables.yml
@@ -11,6 +12,7 @@ ubuntu-bionic-18.04-cloudimg-console.log
 
 ## IDEs
 .idea
+.run
 .vscode
 
 ## Backup Files
@@ -29,3 +31,5 @@ venv/
 
 ## Testing
 .pytest_cache/
+*.log
+birdhouse/data/

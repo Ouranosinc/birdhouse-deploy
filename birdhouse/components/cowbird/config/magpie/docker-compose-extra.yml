@@ -1,5 +1,3 @@
-version: "3.4"
-
 services:
   # extend Magpie permissions to grant access to Cowbird API via secured Twitcher proxy
   magpie:
@@ -18,4 +16,4 @@ services:
   cowbird-worker:
     env_file:
       # user/password for admin session to perform permission sync updates
-      - ./config/magpie/postgres-credentials.env
+      - ./components/magpie/postgres-credentials.env

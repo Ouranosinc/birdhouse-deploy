@@ -1,0 +1,21 @@
+services:
+  mongodb:
+    image: mongo:3.4.0
+    container_name: mongodb
+    networks:
+      - mongodb
+    volumes:
+      - ${MONGODB_DATA_DIR}:/data/db
+    # Mongodb crash with permission denied errors if the command is not overridden like this
+    command: bash -c 'chown -R mongodb:mongodb /data && chmod -R 755 /data && mongod'
+    restart: always
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "print('connected')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+    
+networks:
+  mongodb: {}

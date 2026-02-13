@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# this is external in docker-compose.yml so have to create here
+docker network create jupyterhub_network || true
+
+# no error if already exist
+# create externally so nothing will delete these data volume automatically
+docker volume create jupyterhub_data_persistence  # jupyterhub db and cookie secret

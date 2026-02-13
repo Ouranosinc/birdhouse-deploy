@@ -1,0 +1,24 @@
+services:
+  hummingbird:
+    image: ${HUMMINGBIRD_IMAGE}
+    container_name: hummingbird
+    environment:
+      HOSTNAME: $HOSTNAME
+    volumes:
+      - ./components/hummingbird/custom.cfg:/opt/birdhouse/src/hummingbird/custom.cfg
+    depends_on:
+      - postgres
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "http://localhost:8080/wps?service=WPS&request=GetCapabilities",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s

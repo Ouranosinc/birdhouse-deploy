@@ -1,0 +1,26 @@
+services:
+  finch:
+    image: ${FINCH_IMAGE}
+    container_name: finch
+    environment:
+      HOSTNAME: $HOSTNAME
+      HTTP_PORT: 5000
+      PYWPS_CFG: /wps.cfg
+    volumes:
+      - ./components/finch/wps.cfg:/wps.cfg
+      # - data:/opt/birdhouse/var/lib
+      - /tmp
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://localhost:5000?service=WPS&request=GetCapabilities",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s

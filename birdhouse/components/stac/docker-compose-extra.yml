@@ -1,18 +1,10 @@
-version: "3.4"
-
-x-logging:
-  &default-logging
-  driver: "json-file"
-  options:
-    max-size: "50m"
-    max-file: "10"
-
 services:
   stac:
     container_name: stac
-    image: ghcr.io/crim-ca/stac-app:main
+    image: ${STAC_IMAGE}
     depends_on:
       - stac-db
+      - stac-migration
     environment:
       - POSTGRES_USER=${STAC_POSTGRES_USER}
       - POSTGRES_PASS=${STAC_POSTGRES_PASSWORD}
@@ -21,21 +13,20 @@ services:
       - POSTGRES_HOST_WRITER=stac-db
       - POSTGRES_PORT=5432
       - ROUTER_PREFIX=/stac
-      - OPENAPI_URL=/stac/api
-      - DOCS_URL=/stac/api.html
-    logging: *default-logging
+      - OPENAPI_URL=/stac${STAC_OPENAPI_SPEC_PATH}
+      - DOCS_URL=/stac${STAC_OPENAPI_DOCS_PATH}
     restart: always
-
-  stac-browser:
-    container_name: stac-browser
-    image: ghcr.io/crim-ca/stac-browser:docker_image_push
-    environment:
-      - CATALOG_URL=https://${PAVICS_FQDN_PUBLIC}/stac/
-      - ROOT_PATH=/stac-browser/
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/stac')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
 
   stac-db:
     container_name: stac-db
-    image: ghcr.io/stac-utils/pgstac:v0.6.10
+    image: ${STAC_DB_IMAGE}
     environment:
       - POSTGRES_USER=${STAC_POSTGRES_USER}
       - POSTGRES_PASSWORD=${STAC_POSTGRES_PASSWORD}
@@ -46,11 +37,32 @@ services:
       - PGDATABASE=postgis
     volumes:
       - stac-db:/var/lib/postgresql/data
+    restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
+
+  stac-migration:
+    container_name: stac-migration
+    image: ${STAC_MIGRATION_IMAGE}
+    environment:
+      - POSTGRES_USER=${STAC_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${STAC_POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgis
+      - PGUSER=${STAC_PGUSER}
+      - PGPASSWORD=${STAC_PGPASSWORD}
+      - PGHOST=stac-db
+      - PGDATABASE=postgis
+    links:
+      - stac-db
+    volumes:
+      - stac-db:/var/lib/postgresql/data
+    restart: no
+    command: pypgstac migrate --debug --toversion ${STAC_DB_VERSION}
 
 volumes:
   stac-db:

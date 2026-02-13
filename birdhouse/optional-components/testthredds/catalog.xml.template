@@ -15,7 +15,7 @@
         <service name="ncssPoint" serviceType="NetcdfSubset" base="/${TESTTHREDDS_CONTEXT_ROOT}/ncss/point/" />
     </service>
 
-    <datasetScan name="TestDatasets" ID="testdatasets" path="testdatasets" location="/pavics-testdata">
+    <datasetScan name="TestDatasets" ID="testdatasets" path="testdatasets" location="/birdhouse-testdata">
 
       <metadata inherited="true">
         <serviceName>all</serviceName>

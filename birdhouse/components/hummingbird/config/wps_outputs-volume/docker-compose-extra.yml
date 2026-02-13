@@ -1,0 +1,4 @@
+services:
+  hummingbird:
+    volumes:
+      - wps_outputs:/opt/birdhouse/var/lib/pywps/outputs

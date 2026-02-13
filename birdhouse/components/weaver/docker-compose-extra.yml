@@ -1,12 +1,3 @@
-version: "3.4"
-
-x-logging:
-  &default-logging
-  driver: "json-file"
-  options:
-    max-size: "50m"
-    max-file: "10"
-
 services:
   # Image 'weaver' is the API side of the application
   weaver:
@@ -16,12 +7,16 @@ services:
     #   Weaver is started, they will all be able to request them and register the providers correctly.
     #   This is needed because simply adding 'depends_on' only ensures that containers are 'running', but startup of
     #   WPS applications themselves are not necessarily completed. Successful HTTP responses ensure they are 'ready'.
-    image: pavics/weaver:${WEAVER_VERSION}-manager
+    image: ${WEAVER_MANAGER_IMAGE}
     environment:
-      HOSTNAME: ${PAVICS_FQDN}
+      HOSTNAME: ${BIRDHOUSE_FQDN}
+      # 'HTTP_HOST' and 'SCRIPT_NAME' are used to guide pyramid in the resolution of resources, such as
+      # when invoking the 'static_url' endpoint, so it can be made aware of reverse-proxy context
+      HTTP_HOST: ${BIRDHOUSE_FQDN}
+      SCRIPT_NAME: /${WEAVER_MANAGER_NAME}
       FORWARDED_ALLOW_IPS: "*"
     #env_file:
-    #  - ./config/mongodb/credentials.env
+    #  - ./components/mongodb/credentials.env
     depends_on:
       - weaver-mongodb
     links:
@@ -38,16 +33,27 @@ services:
       # WARNING: see detail in 'worker' definition about below mount location
       - ${WEAVER_WPS_OUTPUTS_DIR}:${WEAVER_WPS_OUTPUTS_DIR}
     restart: always
-    logging: *default-logging
+    healthcheck:
+      test: [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:4001/${WEAVER_MANAGER_NAME}/')"
+      ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
 
   # Image 'worker' is the job runner of Weaver, possibly spawning Docker applications according to process definition
   weaver-worker:
-    image: pavics/weaver:${WEAVER_VERSION}-worker
+    image: ${WEAVER_WORKER_IMAGE}
     container_name: ${WEAVER_WORKER_NAME}
     environment:
       DOCKER_HOST: "tcp://docker-proxy:2375"
     #env_file:
-    #  - ./config/mongodb/credentials.env
+    #  - ./components/mongodb/credentials.env
     depends_on:
       # no 'default' network here such that the worker is not accessible from proxy/http
       - weaver-mongodb
@@ -64,6 +70,7 @@ services:
     volumes:
       #- wps_private:/data/wps_private
       - ./components/weaver/config/weaver/weaver.ini:/opt/local/src/weaver/config/weaver.ini:ro
+      - ./components/weaver/config/weaver/data_sources.yml:/opt/local/src/weaver/config/data_sources.yml:ro
       - ./components/weaver/config/weaver/request_options.yml:/opt/local/src/weaver/config/request_options.yml:ro
       - ./components/weaver/celery-healthcheck:/opt/local/bin/weaver/celery-healthcheck:ro
       # WARNING:
@@ -77,7 +84,6 @@ services:
       - ${WEAVER_WPS_WORKDIR}:${WEAVER_WPS_WORKDIR}
       - ${WEAVER_WPS_OUTPUTS_DIR}:${WEAVER_WPS_OUTPUTS_DIR}
     restart: always
-    logging: *default-logging
     healthcheck:
       # Even when explicitly listing tasks in Weaver INI file, sometimes Celery Worker task is incorrectly prepared.
       # Use the healthcheck to periodically inspect registered celery tasks, which fixes setup problem after startup.
@@ -88,6 +94,7 @@ services:
       interval: 60s
       timeout: 20s
       retries: 2
+      start_interval: 5s
 
   # Dedicated database for Weaver, since other 'mongodb' image does not employ the same version.
   weaver-mongodb:
@@ -98,7 +105,13 @@ services:
     volumes:
       - ${WEAVER_MONGODB_DATA_DIR}:/data/db
     restart: always
-    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "print('connected')"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
 
   # Image 'docker-proxy' is the connector between docker image 'worker' jobs and their sibling docker executions
   docker-proxy:
@@ -129,7 +142,6 @@ services:
       #   only Weaver 'worker' should do the bridge between docker/non-docker accessible images
       #   this way, docker images executed by the workers will not have direct access to databases and datasets
       - docker-proxy
-    logging: *default-logging
     # remote swarm as needed (requires more permissions above)
     #deploy:
     #  placement:

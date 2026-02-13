@@ -1,0 +1,28 @@
+services:
+  raven:
+    image: ${RAVEN_IMAGE}
+    container_name: raven
+    environment:
+      PYWPS_CFG: /wps.cfg
+      # Keep for backward-compat with older RavenWPS.
+      GEO_URL: "${RAVEN_GEO_URL}"
+      # Forward-compat with newer RavenWPS not yet in this stack.
+      RAVEN_GEOSERVER_URL: "${RAVEN_GEO_URL}"
+      RAVENPY_GEOSERVER_URL: "${RAVEN_GEO_URL}"
+    volumes:
+      - ./components/raven/wps.cfg:/wps.cfg
+      - /tmp
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://localhost:9099/wps?service=WPS&request=GetCapabilities",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s

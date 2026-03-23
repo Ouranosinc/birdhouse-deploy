@@ -376,6 +376,7 @@ check_required_vars() {
 # in DELAYED_EVAL list need to call this function to actually resolve the
 # value of each var in DELAYED_EVAL list.
 process_delayed_eval() {
+    export _BIRDHOUSE_ALREADY_PROCESSED_DELAYED_EVAL=True
     ALREADY_EVALED=''
     for i in ${DELAYED_EVAL}; do
         if echo "${ALREADY_EVALED}" | grep -qE "^\s*$i\s*$"; then
@@ -384,6 +385,11 @@ process_delayed_eval() {
         fi
         v="`eval "echo \\"\\$${i}\\""`"  # should keep new lines and leading empty spaces
         value=`eval "echo \"${v}\""`
+        if [ "$?" -ne 0 ] && [ "$_BIRDHOUSE_ALREADY_PROCESSED_DELAYED_EVAL" = "True" ]; then
+          log WARN -n "Delayed eval variable ${i} has already been processed. Unable to re-process this variable. "
+          log WARN -p "This is usually caused by loading the configuration settings multiple times. Please only load them once."
+          value="$v"  # set the value back because it was already set properly
+        fi
         eval 'export ${i}="${value}"'
         log DEBUG "delayed eval '$(env | grep -e "^${i}=")'"
         ALREADY_EVALED="

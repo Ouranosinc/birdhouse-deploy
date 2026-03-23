@@ -1,0 +1,3 @@
+    map $request_uri $request_uri_s3_thredds_path {
+        ~^(?:/s3/${THREDDS_S3_BUCKET_NAME})(.*)$ $1;
+    }

@@ -785,3 +785,17 @@ Note that leaving any of these limits unset will default to allowing the user fu
                   device_ids: ["0", "1"]
 
 .. _MPS: https://docs.nvidia.com/deploy/mps/index.html
+
+Robots
+------
+
+This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
+scrape this website.
+
+By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
+robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
+
+To enable this optional-component:
+
+- Edit ``env.local`` (a copy of `env.local.example`_)
+- Add ``./optional-components/robots`` to ``BIRDHOUSE_EXTRA_CONF_DIRS``.

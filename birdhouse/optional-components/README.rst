@@ -785,3 +785,21 @@ Note that leaving any of these limits unset will default to allowing the user fu
                   device_ids: ["0", "1"]
 
 .. _MPS: https://docs.nvidia.com/deploy/mps/index.html
+
+Mount THREDDS to S3
+-------------------
+
+Automatically mount data in THREDDS to the S3 services.
+
+This creates a new bucket named ``thredds`` by default (can be changed by setting the 
+``THREDDS_S3_BUCKET_NAME`` variable) which contains a symlink to the thredds data which is mounted separately to 
+the `s3` container.
+
+A symlink is used so that the THREDDS data itself does not get added as a subdirectory of S3 data which is itself 
+mounted to the S3 component from a bind mount on the host machine.
+
+A user accessing this data through S3 has the same permissions as if they were accessing the file through THREDDS. 
+Users are currently not permitted to list the files in the ``thredds`` bucket since there is no good way to check 
+whether the user has permission to list specific files according to the Magpie resource permissions for THREDDS.
+
+Add ``./optional-components/mount-thredds-to-s3`` to ``BIRDHOUSE_EXTRA_CONF_DIRS`` to enable this component.

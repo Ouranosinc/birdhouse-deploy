@@ -15,6 +15,23 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+## Fixes
+
+- Catch delayed eval variables that get processed multiple times
+
+  If the `read_configs` function gets called multiple times then delayed eval variables can cause
+  errors.
+
+  For example, if `X='$(echo '"')'` where `X` is a delayed eval variable then when it is first 
+  processed it will evaluate to `X='"'` as expected. However if it is run through the delayed 
+  eval process again it will raise an error because it treats the `"` as an unterminated quoted
+  string. This is not the only way to get an error here but it is a simple example to illustrate
+  the issue.
+
+  In order to avoid this, the code now checks if a delayed eval variable was set successfully and
+  if not it falls back to the original value and warns the user. So in the example above the result
+  of running the delayed eval process multiple times will always result in `X='"'`.
+
 ## Changes
 
 - Better management of `service-config.json` files

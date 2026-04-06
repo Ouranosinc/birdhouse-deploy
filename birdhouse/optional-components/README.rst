@@ -802,4 +802,8 @@ A user accessing this data through S3 has the same permissions as if they were a
 Users are currently not permitted to list the files in the ``thredds`` bucket since there is no good way to check 
 whether the user has permission to list specific files according to the Magpie resource permissions for THREDDS.
 
+Access permissions for the ``thredds`` bucket are determined by the ``thredds`` resource rules in Magpie.
+If an admin sets an access rule for the ``thredds`` bucket using the ``s3`` resource rules in Magpie, they will be
+ignored.
+
 Add ``./optional-components/mount-thredds-to-s3`` to ``BIRDHOUSE_EXTRA_CONF_DIRS`` to enable this component.

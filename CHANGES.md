@@ -19,8 +19,8 @@
 
 - Mount THREDDS data to S3
 
-  Automatically mount data in THREDDS to the S3 services as well when the `optional-components/mount-thredds-to-s3`
-  component is enabled.
+  Automatically mount data in THREDDS to the S3 service when the `optional-components/mount-thredds-to-s3`
+  component is enabled. The S3 service must be enabled as well.
 
   This creates a new bucket named `thredds` by default (can be changed by setting the `THREDDS_S3_BUCKET_NAME`
   variable) which contains a symlink to the thredds data which is mounted separately to the `s3` container.

@@ -19,13 +19,15 @@
     # whether they have browsing permissions for this resource.
     # This means that users must specifically request an exact path to the thredds file they want to access.
     # TODO: find a solution that allows us to check for browse permissions for a given prefix.
-    location = /s3/thredds/ {
+    location = /s3/${THREDDS_S3_BUCKET_NAME}/ {
+        default_type text/plain;
+        return 403 "Object listing operations not permitted for the ${THREDDS_S3_BUCKET_NAME} bucket.";
         deny all;
     }
 
     location = /secure-mount-thredds-to-s3-auth {
         internal;
-        # Use the fileServer path to test weather the user has read permissions for the given resource
+        # Use the fileServer path to test whether the user has read permissions for the given resource
         proxy_pass ${BIRDHOUSE_PROXY_SCHEME}://${BIRDHOUSE_FQDN_PUBLIC}${TWITCHER_VERIFY_PATH}/thredds/fileServer/$request_uri_s3_thredds_path;
         proxy_pass_request_body off;
         proxy_set_header Host $host;

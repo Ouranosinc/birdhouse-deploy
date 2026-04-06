@@ -3,7 +3,9 @@ services:
     image: ${S3_IMAGE}
     container_name: s3
     volumes:
-      - ${S3_DATA_STORE}:/data
+      # Both of these directories need to exist before the service starts so this explicitly creates them both as bind-mounts
+      - ${S3_DATA_STORE}/data:/data/data
+      - ${S3_DATA_STORE}/meta:/data/meta
     environment:
       ROOT_ACCESS_KEY: ${S3_ROOT_ACCESS_KEY}
       ROOT_SECRET_KEY: ${S3_ROOT_SECRET_KEY}

@@ -15,15 +15,60 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+## Fixes
+
+- Catch delayed eval variables that get processed multiple times
+
+  If the `read_configs` function gets called multiple times then delayed eval variables can cause
+  errors.
+
+  For example, if `X='$(echo '"')'` where `X` is a delayed eval variable then when it is first 
+  processed it will evaluate to `X='"'` as expected. However if it is run through the delayed 
+  eval process again it will raise an error because it treats the `"` as an unterminated quoted
+  string. This is not the only way to get an error here but it is a simple example to illustrate
+  the issue.
+
+  In order to avoid this, the code now checks if a delayed eval variable was set successfully and
+  if not it falls back to the original value and warns the user. So in the example above the result
+  of running the delayed eval process multiple times will always result in `X='"'`.
+
 ## Changes
+
+- Better management of `service-config.json` files
+
+  Previously the `service-config.json` files were mounted to the `/static/services/` directory on the `proxy` docker 
+  container.
+
+  This mostly worked except that the `/static` directory was itself mounted from a directory on the host machine.
+  This meant that the files mounted to `/static/services` were also visible from the host machine and would remain
+  on the host filesystem after the stack was brought down or updated. To fix this the old files were removed
+  in `proxy/pre-docker-compose-up` but occasionally these files could be owned by the root user which meant that
+  they could not be properly removed. This happens when the docker daemon restarts.
+
+  In order to prevent this, this change instead mounts these files to a different directory (`/static-services`) on
+  the `proxy` docker container that is not within a directory also mounted from the host. This means that there is
+  no additional cleanup required to manage these files.
+
+- Better management of the S3 data files
+
+  Previously the `data/` and `meta/` subdirectories of the files specified by the `S3_DATA_STORE` variable were
+  created in a `pre-docker-compose-up` file that ran on the host machine.
+
+  This works only if these directories can be created as the user executing `pre-docker-compose-up` which is not
+  the case if the parent folder is root owned. If this is the case, then an error is raised when the stack is 
+  brought up and the S3 service is not started.
+
+  In order to prevent this, these subdirectories are now mounted directly as bind mounts to the S3 container which
+  guarantees that they can be created since the user running docker will have permission to create these as bind
+  mounts. 
 
 - Add optional component to mount a robots.txt file
 
-This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
-scrape this website.
+  This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
+  scrape this website.
 
-By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
-robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
+  By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
+  robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
 
 [2.25.0](https://github.com/bird-house/birdhouse-deploy/tree/2.25.0) (2026-03-17)
 ------------------------------------------------------------------------------------------------------------------

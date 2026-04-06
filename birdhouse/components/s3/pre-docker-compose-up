@@ -1,3 +1,0 @@
-#!/usr/bin/env sh
-
-mkdir -p "${S3_DATA_STORE}/meta" "${S3_DATA_STORE}/data" 

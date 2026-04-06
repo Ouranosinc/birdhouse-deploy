@@ -20,8 +20,8 @@
     }
     location ~ ^/services/(.*)$ {
         default_type application/json;
-        root /static;
-        try_files /services/$1.json =404;
+        root /static-services;
+        try_files /$1.json =404;
     }
 
     location /version {

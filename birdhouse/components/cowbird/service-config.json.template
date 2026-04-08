@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/DACCS-Climate/Marble-node-registry/1.2.0/node_registry.schema.json#service",
+  "$schema": "https://raw.githubusercontent.com/DACCS-Climate/Marble-node-registry/1.3.0/node_registry.schema.json#service",
   "name": "cowbird",
   "version": "${COWBIRD_VERSION}",
   "types": [
@@ -29,7 +29,19 @@
     {
       "rel": "service-meta",
       "type": "application/vnd.oci.image.index.v1+json",
-      "href": "${COWBIRD_IMAGE_URI}"
+      "href": "${COWBIRD_IMAGE_URI}",
+      "title": "Docker Image"
+    },
+    {
+      "rel": "swagger",
+      "type": "text/html",
+      "href": "${BIRDHOUSE_PROXY_SCHEME}://${BIRDHOUSE_FQDN_PUBLIC}/cowbird/api"
+    },
+    {
+      "rel": "openapi",
+      "type": "application/swagger+json",
+      "href": "${BIRDHOUSE_PROXY_SCHEME}://${BIRDHOUSE_FQDN_PUBLIC}/cowbird/json",
+      "title": "OpenAPI Definition"
     },
     {
       "rel": "about",

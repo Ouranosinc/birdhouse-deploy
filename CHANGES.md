@@ -15,7 +15,52 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+## Fixes
+
+- Catch delayed eval variables that get processed multiple times
+
+  If the `read_configs` function gets called multiple times then delayed eval variables can cause
+  errors.
+
+  For example, if `X='$(echo '"')'` where `X` is a delayed eval variable then when it is first 
+  processed it will evaluate to `X='"'` as expected. However if it is run through the delayed 
+  eval process again it will raise an error because it treats the `"` as an unterminated quoted
+  string. This is not the only way to get an error here but it is a simple example to illustrate
+  the issue.
+
+  In order to avoid this, the code now checks if a delayed eval variable was set successfully and
+  if not it falls back to the original value and warns the user. So in the example above the result
+  of running the delayed eval process multiple times will always result in `X='"'`.
+
 ## Changes
+
+- Better management of `service-config.json` files
+
+  Previously the `service-config.json` files were mounted to the `/static/services/` directory on the `proxy` docker 
+  container.
+
+  This mostly worked except that the `/static` directory was itself mounted from a directory on the host machine.
+  This meant that the files mounted to `/static/services` were also visible from the host machine and would remain
+  on the host filesystem after the stack was brought down or updated. To fix this the old files were removed
+  in `proxy/pre-docker-compose-up` but occasionally these files could be owned by the root user which meant that
+  they could not be properly removed. This happens when the docker daemon restarts.
+
+  In order to prevent this, this change instead mounts these files to a different directory (`/static-services`) on
+  the `proxy` docker container that is not within a directory also mounted from the host. This means that there is
+  no additional cleanup required to manage these files.
+
+- Better management of the S3 data files
+
+  Previously the `data/` and `meta/` subdirectories of the files specified by the `S3_DATA_STORE` variable were
+  created in a `pre-docker-compose-up` file that ran on the host machine.
+
+  This works only if these directories can be created as the user executing `pre-docker-compose-up` which is not
+  the case if the parent folder is root owned. If this is the case, then an error is raised when the stack is 
+  brought up and the S3 service is not started.
+
+  In order to prevent this, these subdirectories are now mounted directly as bind mounts to the S3 container which
+  guarantees that they can be created since the user running docker will have permission to create these as bind
+  mounts. 
 
 - GeoServer: upgrade to 2.27.2 to fix vulnerabilities
 
@@ -39,6 +84,942 @@
   fails, you won't be able to rollback.  If you have upgrade problem, please
   look at
   [kartoza/docker-geoserver#760](https://github.com/kartoza/docker-geoserver/issues/760).
+
+
+[2.25.0](https://github.com/bird-house/birdhouse-deploy/tree/2.25.0) (2026-03-17)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Create S3 service
+
+  Introduces a new service that allows users to download data using an S3 interface. This S3 interface is read-only
+  for users and it's intended purpose is to serve data (like Thredds, Geoserver, or the secure data proxy).
+
+  Administrators can create buckets on S3 using the `make-s3-bucket.sh` script. This will create a bucket and 
+  create a Magpie resource for that bucket. By default, only admin users will be able to interact with a new bucket
+  but additional read permissions can be added to users and groups through Magpie.
+
+  For example, to create a bucket named "birdhouse":
+
+  ```sh
+  ./birdhouse/scripts/make-s3-bucket.sh birdhouse
+  ```
+
+  Administrators can interact with the S3 interface with admin permissions through the `s3-cli` service.
+  This uses the [AWS CLI](https://aws.amazon.com/cli/) tool and supports all subcommands.
+  
+  For example, to list all buckets:
+
+  ```sh
+  ./bin/birdhouse compose run --rm s3-cli s3 ls
+  ```
+
+  or to upload some files to the "birdhouse" bucket
+
+  ```sh
+  ./bin/birdhouse compose run --rm -v ./files-to-upload:/data:ro s3-cli s3 cp /data s3://birdhouse
+  ```
+
+  Administrators can also add files to the birdhouse bucket by adding them directly to the directory
+  specified by the `S3_DATA_STORE` config variable. For example, if `S3_DATA_STORE=/data/s3-data` and
+  I want to add the same files in the example above to the "birdhouse" bucket:
+
+  ```sh
+  cp -r ./files-to-upload /data/s3-data/birdhouse/
+  ```
+
+  Note that when setting permission in Magpie that write permissions are ignored and read permissions
+  only apply for buckets and individual files. For example, I can set read permissions on the "birdhouse"
+  bucket and a file in that bucket at "birdhouse/subdir/file.nc" and that will effect whether a user can
+  see the files in "birdhouse" and whether they can read that one file. 
+  However, if I set a read permission on "birdhouse/subdir/" this will have no effect on whether the user 
+  can or cannot read or browse files in the "subdir/" folder.
+
+- Add Nvidia MPS component for managing Nvidia GPU resources
+
+  This creates a container running Nvidia's Multi Process Service ([MPS](https://docs.nvidia.com/deploy/mps/index.html)) 
+  which helps manage multi-user GPU access.
+  It runs an alternative CUDA interface which manages resource allocation when multiple processes are running simultaneously
+  on the same GPU.
+  It also allows the node admin to set additional per-user limits through the `JUPYTERHUB_RESOURCE_LIMITS` variable
+  which configures Jupyterlab containers:
+
+  - `"gpu_device_mem_limit"`: sets the `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT` environment variable
+  - `"gpu_active_thread_percentage"`: sets the `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE` environment variable
+
+  For example, the following will give all users in the group named `"users"` access to three GPUs in their Jupyterlab
+  container. On the first one (id = 0) only 1GB of memory is available, on the second (id = 1) only 5GB, and on the third 
+  (id = 2) only 10GB. Additionally, the container will be able to use 10% of available threads on the GPUs.
+
+  ```shell
+  export JUPYTERHUB_RESOURCE_LIMITS='
+  [{
+        "type": "group", 
+        "name": "users", 
+        "limits": {
+          "gpu_ids": ["0", "1", "2"], 
+          "gpu_count": 3, 
+          "gpu_device_mem_limit": "0=1G,1=5G,2=10G", 
+          "gpu_active_thread_percentage": "10"
+        }
+  }]
+  '
+  ```
+
+  Note that leaving any of these limits unset will default to allowing the user full access to the given resource.
+
+- Update `CustomDockerSpawner` to make pre spawn hooks and resource limits more configurable
+
+  Introduce `builtin_pre_spawn_hooks` and `resource_limit_callbacks` attributes to the `CustomDockerSpawner` class which 
+  can be used to further customize the `CustomDockerSpawner` from optional components. This gives us a way to 
+  add additional functionality without having to directly modify existing functions which may be overwritten by the
+  user when they configure the spawner in `JUPYTERHUB_CONFIG_OVERRIDE`.
+
+  This also introduces the `JUPYTERHUB_CONFIG_OVERRIDE_INTERNAL` variable which is identical to the 
+  `JUPYTERHUB_CONFIG_OVERRIDE` variable except that it is intended to only be set by other components (not by the
+  user in the local environment file). This allows components to customize Jupyterhub deployments without interfering
+  with custom settings created by the user. 
+  
+  Note that the contents of `JUPYTERHUB_CONFIG_OVERRIDE` have precedence over the contents of 
+  `JUPYTERHUB_CONFIG_OVERRIDE_INTERNAL`. So for example if you create a volume mount named `my_volume` in both, only
+  the one defined in `JUPYTERHUB_CONFIG_OVERRIDE` will be applied.
+
+## Fixes
+
+- Update GPU limit examples to show expected syntax
+
+  Fixes some examples that showed that `gpu_ids` could be given as integers if they were meant to be indexes. However, 
+  due to limitation of docker they must be strings. This modifies examples so that it is clear that strings must be 
+  used and also updates the code to ensure that string values are only ever passed to docker when spawning a new 
+  jupyterlab server.
+
+- Improve prometheus-longterm-metrics scraping
+
+  The prometheus-longterm-metrics service scrapes longterm data rules from the prometheus service. However, the 
+  scrape interval was set too long (1 hour) which meant that some data was probably lost in between scrapes. Also,
+  the prometheus documentation recommends setting unique `external_labels` when exporting data to a different 
+  federated prometheus instance.
+
+  Note that I don't know how long is too long for a scrape interval before data starts being lost but with some 
+  experimentation it seems that 5 minutes is at least below that threshold and it's not so frequent that it seems
+  like a waste to be polling so often. 
+
+
+[2.24.1](https://github.com/bird-house/birdhouse-deploy/tree/2.24.1) (2026-03-04)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- CanarieAPI: update to version [`1.1.0`](https://github.com/Ouranosinc/CanarieAPI/releases/tag/1.1.0).
+
+  - Reduces the Docker image size by >50%.
+  - Rebuild the Docker image for security fixes.
+
+[2.24.0](https://github.com/bird-house/birdhouse-deploy/tree/2.24.0) (2026-03-03)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Update `magpie` to version 5.0.1
+
+  This update to Magpie introduces 
+  [network mode](https://pavics-magpie.readthedocs.io/en/latest/authentication.html#network-mode).
+
+  This is disabled by default to ensure backwards compatibility but can be enabled by setting
+  `MAGPIE_NETWORK_ENABLED=true` in your local environment file.
+  Note that enabling network mode also requires setting `MAGPIE_NETWORK_INSTANCE_NAME` to a unique
+  name within the network.
+
+  Upgrading to this version does not require any database migration and is fully backwards compatible
+  with previous versions.
+
+  This change also introduces the ability to set 
+  [all configuration options](https://pavics-magpie.readthedocs.io/en/latest/configuration.html#network-mode-settings) 
+  for Magpie's network mode as environment variables in the local environment file.
+  Note that all of these configuration options will be ignored if `MAGPIE_NETWORK_ENABLED` is `false`.
+
+
+[2.23.3](https://github.com/bird-house/birdhouse-deploy/tree/2.23.3) (2026-02-26)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- generic_bird: wrong DB credential provided
+
+  Missing template explansion (since `2.4.0`) and wrong credential file (since the beginning!).
+
+  `docker logs generic_bird` had this error:
+  ```
+  sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "postgres_generic_bird" (172.23.0.20),
+  port 5432 failed: FATAL:  database "generic_bird" does not exist
+  ```
+
+  When upgrading from a working existing generic_bird, it is fine but when
+  spinning up a brand new instance, it does not work.
+
+
+[2.23.2](https://github.com/bird-house/birdhouse-deploy/tree/2.23.2) (2026-02-20)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Unable to set custom homepage due to a missing back-compat config var mapping
+
+  Only when back-compat mode is used.  Regression since `2.4.0`.
+
+  Missing mapping `PROXY_ROOT_LOCATION=BIRDHOUSE_PROXY_ROOT_LOCATION`.
+
+
+[2.23.1](https://github.com/bird-house/birdhouse-deploy/tree/2.23.1) (2026-02-17)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- STAC API: Security update, minor OpenAPI version reporting fixes, and `stac-fastapi`/`starlette` compatibility fix
+  using version [2.3.0](https://github.com/crim-ca/stac-app/releases/tag/2.3.0)
+  (relates to [crim-ca/stac-app#65](https://github.com/crim-ca/stac-app/pull/65),
+  [crim-ca/stac-app#69](https://github.com/crim-ca/stac-app/pull/69) and
+  [crim-ca/stac-app#74](https://github.com/crim-ca/stac-app/pull/74)).
+
+- Cowbird: Security update using version [2.6.0](https://github.com/Ouranosinc/cowbird/releases/tag/2.6.0)
+  (relates to [Ouranosinc/cowbird#98](https://github.com/Ouranosinc/cowbird/pull/98)).
+
+- Magpie: Security update using version [4.3.1](https://github.com/Ouranosinc/Magpie/releases/tag/4.3.1)
+  (relates to [Ouranosinc/Magpie#640](https://github.com/Ouranosinc/Magpie/pull/640)
+  and [Ouranosinc/Magpie#642](https://github.com/Ouranosinc/Magpie/pull/642)).
+
+- Twitcher: Security update using version [0.11.0](https://github.com/bird-house/twitcher/releases/tag/v0.11.0)
+  (relates to [bird-house/twitcher#143](https://github.com/bird-house/twitcher/pull/143),
+  [bird-house/twitcher#145](https://github.com/bird-house/twitcher/pull/145),
+  [bird-house/twitcher#146](https://github.com/bird-house/twitcher/pull/146) and
+  [bird-house/twitcher#148](https://github.com/bird-house/twitcher/pull/148)).
+
+- Weaver: Security and dependency fix update using version [6.8.3](https://github.com/crim-ca/weaver/releases/tag/6.8.3)
+  (relates to [crim-ca/weaver#868](https://github.com/crim-ca/weaver/pull/868),
+  [crim-ca/weaver#869](https://github.com/crim-ca/weaver/pull/869),
+  [crim-ca/weaver#877](https://github.com/crim-ca/weaver/pull/877) and
+  [crim-ca/weaver#881](https://github.com/crim-ca/weaver/pull/881)).
+
+- Weaver: Update `post-docker-compose-up` script.
+  - Handle multiple Magpie cookies in response.
+    This can happen depending on specific internal HTTP libraries versions of the services.
+    To retain backward/forward compatibility, all cookies returned from Magpie are chained in following `curl` commands.
+  - Use birdhouse `log` utility to report operations produced by the script rather than custom "echo level".
+
+- Weaver: Job Result Proxy Buffers
+  - The *Job Results* responses of `weaver` can return a lot of `Link` headers. This is done to provide job metadata
+    references and provenance traceability details, but also for actual results locations that can vary in quantity
+    depending on the actual process execution.
+    Therefore, the Ngnix `proxy_buffer_size` and `proxy_buffers` directives of the `proxy` service must be added with
+    sufficiently large values to avoid HTTP 502 errors when the response headers exceed the default buffer sizes.
+    The `WEAVER_PROXY_RESPONSE_BUFFER_SIZE` and `WEAVER_PROXY_RESPONSE_BUFFER_COUNT` variables are added to allow
+    further customization as needed by the server. Their defaults are reasonable values to meet minimal requirements
+    by `weaver`'s metadata `Link` and a few result outputs.
+
+- Birdhouse: Allow `log <LEVEL> -n ...` and `log <LEVEL> -p ...` to generate log outputs without newline/prefixes.
+  
+  These options allow writing multiple log entries onto the same line for correct visual rendering of distinct `log`
+  calls separated to allow some intermediate logic. The `log` function invocations with these options respect the
+  log levels in order to make the messages consistent with enabled redirections and verbosity.
+
+[2.23.0](https://github.com/bird-house/birdhouse-deploy/tree/2.23.0) (2026-02-13)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- DGGS: Update API metadata and version from `v0.1.6-rc7` to `v0.1.6-rc12`.
+
+  - Set default version to [`ghcr.io/crim-ca/pydggsapi:v0.1.6-rc12`](https://github.com/crim-ca/pydggsapi/pkgs/container/pydggsapi/682138353?tag=v0.1.6-rc12).
+    This includes multiple DGGS-API features such as supporting alternate response media-types (Zarr, UBJSON, binary, etc.),
+    adds optimizations like GZIP compression when requested, reduces the Docker image size (~1GB smaller),
+    improves the OpenAPI definitions, the collection metadata for better discovery of queryables and grid dimensions,
+    as well as various bug fixes.
+
+    Full changes: https://github.com/crim-ca/pydggsapi/compare/crim-ca:pydggsapi:v0.1.6-rc7...crim-ca:pydggsapi:v0.1.6-rc12 
+
+  - Fix `SERVICE_META_URL` value not reporting a resolvable `/services/dggs` location.
+  - Fix the missing volume mount for `/services/dggs` definition.
+
+[2.22.1](https://github.com/bird-house/birdhouse-deploy/tree/2.22.1) (2026-02-09)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- STAC: add environment variables to facilitate customization of the API's landing page and OpenAPI metadata.
+
+  - Adds `STAC_FASTAPI_VERSION`, `STAC_FASTAPI_TITLE`, `STAC_FASTAPI_DESCRIPTION`, `STAC_FASTAPI_LANDING_ID` variables.
+    These names are purposely selected to align natively with
+    [stac-fastapi settings](https://stac-utils.github.io/stac-fastapi/tips-and-tricks/#set-api-title-description-and-version).
+    Implementations previously had to manually inject the variables using a `docker-compose-extra.yml` configuration
+    extending the `stac` service with the relevant `environment` variables and values.
+
+[2.22.0](https://github.com/bird-house/birdhouse-deploy/tree/2.22.0) (2026-02-09)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Service files not properly deleted when bringing up the stack
+
+  The service files served by the proxy container as static JSON files were not properly deleted because the command
+  used a path with `*` in quotes which matches the `*` character instead of treating it as a glob pattern.
+  This meant that the `rm` command was trying to remove a file named `*` instead of all files in the directory.
+
+  The files were also being removed by a plain `rm` command which is often an alias for `rm -i` in some shell environments
+  meaning that the deletion could be run interactively. By changing this to `rm -f` we can ensure that the
+  `rm` in this script is always in non-interactive mode and it also lets us remove the `|| true` since the `-f` flag
+  ensures that the return code from `rm` will always be 0 regardless of whether the command succeeded or failed.
+
+- Prometheus sends alertmanager API requests to correct path
+
+  Prometheus communicates with alertmanager through its API which is accessible on docker's bridge network at
+  `http://altermanager:9093/alertmanager/api/v2`. But, prometheus was not configured to include the `/alertmanager`
+  subpath so it was actually sending alerts to `http://alertmanager:9093/api/v2` which returned a 404 error.
+
+  This fix updates the prometheus configuration so that it sends alerts to the correct URL.
+
+## Changes
+
+- Update `cadvisor` image version
+
+  Docker engine version 29.0 dropped support for docker API versions <1.44. That means that the docker client used
+  by the `cadvisor` component cannot be used with modern versions of docker engine. To fix this, the `cadvisor`
+  component's image has been updated to the most recent cAdvisor version [v0.54.1](https://gcr.io/cadvisor/cadvisor:v0.54.1) 
+  which uses a modern version of the docker client.
+
+- Refactor Jupyterhub configuration files
+
+  Previously the jupyterhub configuration was defined in `components/jupyterhub/jupyterhub_config.py.template` 
+  except for the custom authenticator which was included in the `pavics/jupyterhub` docker image. This was fine, 
+  except that the configuration was split across two projects and as the configuration got more complex, 
+  maintaining these was getting more difficult.
+
+  This moves all configuration code including the authenticator to a python package named `jupyterhub_custom`
+  located at `components/jupyterhub/jupyterhub_custom/`. It moves all configurations for the authenticator
+  to the `magpie_authenticator.py` file and all the configurations for the spawner to the `custom_spawner.py`
+  file. All variables that are settable by environment variables are moved to the `constants.py` file. This 
+  makes it much easier to see which variables are configurable using environment variables all in one place.
+
+  This change introduces unit tests and style policies (enforced by [ruff](https://docs.astral.sh/ruff/) and 
+  [pre-commit](https://pre-commit.com/)) for this package to encourage better code practices.
+
+  This change should be fully backwards compatible with the exception of the change to how settings for 
+  `deprecated-components/catalog` is handled (see below). However, it does deprecate some environment variables in
+  favour of better configuration solutions:
+
+  - using the `JUPYTERHUB_ENABLE_MULTI_NOTEBOOKS` variable to set the `DockerSpawner.allowed_images` variable
+    is deprecated.
+    - why?: this variable could be used to insert any python code into the middle of the 
+      `jupyterhub_config.py.template` file. This makes it too easy to accidentally insert code that breaks
+      the configuration settings later on. We should avoid code insertion like this whenever possible.
+    - new method: by default `DockerSpawner.allowed_images` will be set based on the values of 
+      `JUPYTERHUB_IMAGE_SELECTION_NAMES` and `JUPYTERHUB_DOCKER_NOTEBOOK_IMAGES`. If more than one image
+      is specified by those variables then the user will be able to select which one they want. If you 
+      want to specify images other than those in the default, those can be set using the `JUPYTERHUB_ALLOWED_IMAGES`
+      which is a yaml or JSON mapping of image names to jupyterlab docker image tags.
+  - using the `JUPYTERHUB_ADMIN_USERS` variable to set the `DockerSpawner.admin_users` variable is deprecated.
+    - why?: this also executes arbitrary code (like above). Also, jupyterhub encourages assigning admin permissions
+      based on 
+      [roles](https://jupyterhub.readthedocs.io/en/latest/tutorial/getting-started/authenticators-users-basics.html#configure-admins-admin-users),
+      not by assigning them to the `admin_users` attribute. This makes it possible to easily revoke admin
+      permissions as well and does not require us to restart Jupyterhub to do so.
+    - new method: a new Magpie group is created. Its name is determined by the `JUPYTERHUB_ADMIN_GROUP_NAME` 
+      variable (default is "jupyterhub-admin"). Add users to this group in Magpie in order to give them admin permissions on Jupyterhub.
+  - using lowercase constants in `JUPYTERHUB_CONFIG_OVERRIDE` is deprecated.
+    - why?: [PEP8 recommends](https://peps.python.org/pep-0008/#constants) constants be written with capitals
+      with underscores separating them.
+    - new method: all the constants that were previously named with lowercase have an uppercase equivalent 
+      in `constants.py`. For example: `notebook_dir == constants.NOTEBOOK_DIR`. The uppercase version is 
+      preferred.
+
+  Note: if your deployment is still using the `deprecated-components/catalog` component. You may want to manually set the
+  following in `JUPYTERHUB_CONFIG_OVERRIDE` since the automatic addition of the the `CATALOG_USERNAME` to the `blocked_users`
+  set is no longer part of the default settings (since the `deprecated-components/catalog` component has been deprecated for 
+  a long time):
+
+  ```python
+  c.MagpieAuthenticator.blocked_users.add("${CATALOG_USERNAME}")
+  ```
+
+- Introduce a scheduler job to delete old files that may accumulate over time
+
+  Creates the `optional-component/clean_old_files` job that deletes old THREDDS log files and WPS output files.
+  Allows individual cleanup jobs to be enabled for each of `raven`, `finch`, `hummingbird`, and `thredds` components.
+  Allows the user to configure how old a file must be before it is deleted (age in days) and how to calculate the age
+  of the file (time since last modified, time since last accessed, time since created).
+  
+  (see `env.local.example` or the `scheduler` documentation for details).
+
+[2.21.2](https://github.com/bird-house/birdhouse-deploy/tree/2.21.2) (2026-02-05)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Bug fixes for healthchecks and update-postgres.sh
+
+  - Fix healthchecks for `finch`, `raven`, and `postgres-magpie` containers
+  - update `scripts/update-postgres.sh` to ensure that the user calling the script has permissions to move
+    directories that may be owned by root.
+
+## Changes
+
+- Set GPU access on Jupyterlab containers based on Magpie user or group name
+
+  Adds to the feature that lets resource allocations to Jupyterlab containers be assigned based on username or
+  group membership.
+
+  New settings for the `JUPYTERHUB_RESOURCE_LIMITS` variable are `gpu_ids` and `gpu_count`.
+
+  `gpu_ids` are an array of the GPU uuids or zero based indexes of the GPUs that you want to make available 
+  to the user or group. GPU uuids and indexes can be discovered by running the `nvidia-smi --list-gpus` command or similar
+  (such as `amd-smi list` for AMD GPUs). Uuids are preferred as they remain stable across the life of the GPU. Mixing indexes and uuids
+  is possible but discouraged since it makes it possible to select the same GPU multiple times.
+  If `gpu_count` is also specified, this is an integer indicating how many GPUs to make available to that user or group.
+  If `gpu_count` is not specified, then exactly one GPU will be randomly selected.
+  For example, if `{"gpu_ids": [1,2,6], "gpu_count": 2}` then two GPUs will be randomly selected from the `gpu_ids` list.
+
+  Also changes the format for `JUPYTERHUB_RESOURCE_LIMITS` to a yaml or JSON string. 
+
+[2.21.1](https://github.com/bird-house/birdhouse-deploy/tree/2.21.1) (2026-02-02)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Services: Update and fix certain `/services/...` definitions.
+
+  - Fix incorrectly defined links reporting OpenAPI or Docker URIs inappropriately or without adequate media-type.
+  - Add `/services/canarie` definition to provide metadata about CanarieAPI component if enabled.
+  - Fix outdated `service-config.json` definitions sometimes incorrectly detected by docker-compose due to reused inode.
+
+[2.21.0](https://github.com/bird-house/birdhouse-deploy/tree/2.21.0) (2026-01-27)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Remove `proxy` component's dependency on `scheduler` and `scheduler-job-logrotate-nginx`
+
+  Creates new settings in `optional-components/proxy-log-volume` that create the `proxy-logs` docker volume as well
+  as instructing Nginx to write access logs to an additional log file (specified by `PROXY_LOG_PATH`). These settings
+  are included as a `COMPONENT_DEPENDENCY` in components that require access to the the `proxy` access logs as a
+  regular file. If no components require access to these logs as a regular file then the `proxy` component will only
+  write access logs to the stdout stream for that container.
+
+  Right now, the only components that require access to logs in this way are `components/canarie-api` and
+  `optional-components/prometheus-log-parser`. Both of these now include `optional-components/proxy-log-volume` as a
+  `COMPONENT_DEPENDENCY`.
+
+  Note: this means that if no optional components require `optional-components/proxy-log-volume` as a dependency
+  then logs from the `proxy` container will only be written to stdout/stderr. This means that there is no need
+  for any additional custom log rotation handling since the logs are handled directly by docker. This means that
+  the `proxy` service itself no longer need to be dependant on the `scheduler` and `scheduler-job-logrotate-nginx`
+  components.
+
+  Note: a previous discussion suggested that logs could be parsed directly from the stdout stream of the `proxy`
+  container. However, there is no way to do so that doesn't require very hacky workarounds. Possible solutions that
+  were explored and rejected include:
+
+    - Mounting the log file from the `proxy` container from the host to the relevant containers.
+      Rejected because this practice is highly discouraged by docker as the actual storage location of log files
+      is not standardized and may be changed in future versions.
+    - Writing logs to a named pipe or socket within the `proxy` container.
+      Rejected because this is very difficult to set up and is untested when then mounted to other containers. 
+      Also, a different named pipe would be required for each consumer which is currently very difficult to set up 
+      using birdhouse's deployment tools. 
+
+  **Breaking Change**: if a custom component (not included in this repository) uses the `proxy-logs` named volume.
+  It must now include `optional-components/proxy-log-volume` as a `COMPONENT_DEPENDENCY` for that custom component.
+
+  **Breaking Change**: if `SCHEDULER_JOB_BACKUP_ARGS` specifies `-l proxy` explicitly (not `-l '*'`) then this should
+  be changed to `-l proxy-log-volume` since the backup script has been moved. Note that it is not necessary to
+  specify `-l proxy-log-volume` if `--birdhouse-logs` is also specified because the log data is identical in both.
+
+- Make docker compose logging options configurable
+
+  Introduce a new component `components/logging` that sets default logging options for all docker 
+  compose services started by `birdhouse-deploy`. This component is enabled by default.
+
+  The default value is set by the `BIRDHOUSE_DOCKER_LOGGING_DEFAULT` environment variable. To change the default
+  value, set the `BIRDHOUSE_DOCKER_LOGGING_DEFAULT` to a JSON string in the local environment file that contains
+  a valid 
+  [docker compose logging configuration](https://docs.docker.com/reference/compose-file/services/#logging).
+
+  For example, to set the default driver to "local" set the following in your local environment file:
+
+  ```sh
+  export BIRDHOUSE_DOCKER_LOGGING_DEFAULT='{"driver": "local"}'
+  ```
+
+  You can also override logging options for a single service using environment variables using a variable
+  `BIRDHOUSE_DOCKER_LOGGING_<service_name>` where `<service_name>` is the uppercase name of the docker compose 
+  service with hyphens replaced with underscores. For example, to set the default driver to "local" only for the 
+  `weaver-worker` service:
+
+  ```sh
+  export BIRDHOUSE_DOCKER_LOGGING_WEAVER_WORKER='{"driver": "local"}'
+  ```
+
+  Logging options can can also be set directly in a component's ``docker-compose-extra.yml`` file. 
+  The order of precedence for logging options are as follows:
+
+  1. logging options specified by `BIRDHOUSE_DOCKER_LOGGING_<service_name>` environment variable
+  2. logging options set in a `docker-compose-extra.yml` file
+  3. logging options specified by `BIRDHOUSE_DOCKER_LOGGING_DEFAULT` environment variable
+
+- Add script that automatically updates postgres databases to a later version
+
+  In anticipation of upgrading postgres databases in the future, this introduces a script that automatically
+  upgrades postgres databases using the backup/restore process.
+
+  This includes magpie and all WPS birds that use the postgres component. This does not include test component 
+  like `optional-components/generic_bird` and will not update custom components (ones not from this repository).
+
+  Test components are not assumed to have persistent data that needs to be updated and we cannot guarantee that
+  other postgres databases used by components outside this repository do not require additional steps (data
+  migrations) in order to comply with a different version of postgres. 
+
+  It will update postgres databases to the version specified by the `POSTGRES_VERSION_UPDATE` environment variable.
+  All of the old database files will be copied to a temporary directory in case you want to inspect them or revert 
+  this operation later on. To specify which directory to write these backups to set the `BIRDHOUSE_BACKUP_DATA_DIR` variable 
+  (default: `${TMPDIR:-/tmp}/birdhouse-postgres-migrate-backup/`)
+  
+  Note that backups in the form of database dumps will also be written to the named volume or directory specified 
+  by the `BIRDHOUSE_BACKUP_VOLUME` variable.
+
+  For example, to update the current postgres databases to version 18.1 and write backups to `/tmp/test/`
+  
+  ```sh
+  $ POSTGRES_VERSION_UPDATE=18.1 BIRDHOUSE_BACKUP_DATA_DIR=/tmp/test/ birdhouse/scripts/update-postgresh.sh
+  ```
+
+  In a future update we can update the postgres versions and tell users to run this script first in order to safely
+  migrate data from one version to the next.
+
+[2.20.4](https://github.com/bird-house/birdhouse-deploy/tree/2.20.4) (2026-01-16)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Update `scheduler` image version
+
+  Docker engine version 29.0 dropped support for docker API versions <1.44. That means that the docker client used
+  by the `scheduler` component cannot be used with modern versions of docker engine. To fix this, the `scheduler`
+  component's image has been updated to version [0.6-rc3](https://hub.docker.com/layers/pavics/crontab/0.6-rc3) which
+  uses a modern version of the docker client.
+
+
+[2.20.3](https://github.com/bird-house/birdhouse-deploy/tree/2.20.3) (2026-01-13)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Fix bugs in `get-components-json.include.sh` and simplify `get-services-json.include.sh`
+
+  `get-components-json.include.sh` was unable to handle the case where a component was commented out in
+  the `BIRDHOUSE_EXTRA_CONF_DIRS` variable.
+
+  This also simplifies the code in both files to make it easier to maintain:
+  
+  - removed unnecessary variable declarations
+  - simplify component discovery `get-components-json.include.sh`
+
+- Incorrect usage checks for `birdhouse backup create`
+
+  Running `birdhouse backup create` was failing without either the `--no-restic` or `--snapshot` options specified.
+  However, `--snapshot` is only required for the `restore` subargument (not `create`) and so `create` would often
+  fail with a confusing error message.
+
+  This fixes the issue by moving the check so that it is only triggered when restoring a backup.
+
+[2.20.2](https://github.com/bird-house/birdhouse-deploy/tree/2.20.2) (2026-01-05)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- STAC API: Improve reported service links.
+
+  - Add `STAC_LICENSE_URL` to define the relevant license metadata location of the selected implementation.
+  - Add `STAC_OPENAPI_SPEC_PATH` and `STAC_OPENAPI_DOCS_PATH` to define endpoints of OpenAPI specification.
+  - Update the `/services/stac` response to provide more metadata links, including license details and better
+    API metadata references. Notably, replace the *generic* STAC API Core OpenAPI definition by the 
+    implementation-specific definition self-served by the selected docker image to document API extensions.
+
+[2.20.1](https://github.com/bird-house/birdhouse-deploy/tree/2.20.1) (2025-12-16)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Add log rotation scheduler job for the nginx logs
+
+  Currently, the nginx logs are not rotated so they can build up to quite a large size.
+
+  Previously, they were rotated by the `canarie-api` component but that is no longer a required
+  component and CanarieAPI hasn't handled log rotation since CanarieAPI version 1.0.0 (see 
+  https://github.com/bird-house/birdhouse-deploy/pull/452 for details).
+
+  Fixes https://github.com/bird-house/birdhouse-deploy/issues/593. Here is a summary of the issue:
+
+  - CanarieApi parses the log file every minute starting from the beginning of the file
+  - If the log file is really big it uses a lot of CPU and memory to read through the whole file
+  - This would use a lot less CPU and memory if the log file was smaller
+
+  This quick and least disruptive fix to get the production server out of the water should be a 
+  temporary solution until a better solution using container STDOUT parsing is implemented for 
+  the CanarieAPI and prometheus-log-parser (https://github.com/bird-house/birdhouse-deploy/issues/618).  
+  Then we can deprecate this scheduler job.
+
+[2.20.0](https://github.com/bird-house/birdhouse-deploy/tree/2.20.0) (2025-12-10)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- STAC API: update to version [`2.1.0`](https://github.com/crim-ca/stac-app/releases/tag/2.1.0).
+
+  - Fix paging error on `/collections` responses causing requests with `limit` query or catalogs
+    with more than 10 collections (by default) to never return collections beyond the first page.
+
+- STAC Browser: update to version [`4.0.0-rc.2-crim`](https://github.com/crim-ca/stac-browser/releases/tag/v4.0.0-rc.2-crim).
+  
+  Apply upstream fixes, notably:
+
+  - Logo resizing issue when embedded in contact details.
+  - Handling of `geojson.io` external viewer references from compatible GeoJSON STAC Assets.
+  - Improvements to UI for better locales, content positioning and browsing experience.
+  - Alignment with latest OGC APIs requirements and conformance classes.
+  - Added support for multiple additional data representations and visualization.
+
+[2.19.0](https://github.com/bird-house/birdhouse-deploy/tree/2.19.0) (2025-12-05)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- DGGS: Add the new `components/dggs` providing an OGC API for Discrete Global Grid Systems.
+  - DGGS API available through `/dggs-api` path (default, configurable via `DGGS_API_PATH`).
+  - Redirects available for `/ogcapi/dggs/...` and  `/ogcapi/collections/.../dggs/...`.
+  - Sample configuration (minimum 1 resolvable data provider required) uses the new
+    feature of `optional-components/secure-data-proxy` on CRIM's Hirondelle server.
+
+- Data: Allow `optional-components/secure-data-proxy` to define generic and flexible locations.
+  - `SECURE_DATA_PROXY_ROOT` can be defined as mount directory inside the `proxy` service.
+  - `SECURE_DATA_PROXY_LOCATIONS` can be defined with any amount of custom locations.
+  - All locations can be configured (as desired) under Magpie `secure-data-proxy` service for access control.
+  - Other components (`wps_output-volume`, `stac-data-proxy`) that can optionally use this security middleware
+    via `SECURE_DATA_PROXY_AUTH_INCLUDE` can still do so. Their mount points are handled separately.
+
+- Weaver: Modified `/ogcapi/...` redirections strategy via `WEAVER_ALT_PREFIX_PROXY_LOCATION`. 
+  - Allows other OGC APIs to reuse the same prefix to provide a unified location to access them.
+
+[2.18.16](https://github.com/bird-house/birdhouse-deploy/tree/2.18.16) (2025-12-05)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Proxy: Allow `Access-Control-Allow-Origin` header to be configured using `BIRDHOUSE_PROXY_CORS_ALLOW_ORIGIN` variable.
+  - A `defaults.include.template` file is introduced to setup global nginx server defaults that can be overridden
+    by more specialized definitions in `location` blocks of components.
+  - The default `BIRDHOUSE_PROXY_CORS_ALLOW_ORIGIN="*"` is used to retain the previous behaviour.
+  - The `BIRDHOUSE_PROXY_CORS_ALLOW_ORIGIN` variable can reference other variables to allow dynamic configuration
+    (notably, to reference `BIRDHOUSE_FQDN_PUBLIC` for same-origin allowance).
+  - Align the documentation with corresponding `STAC_CORS_ORIGINS` header implications.
+  - Avoids Nginx warnings flagged from using uninitialized `access_control_allow_origin` variable
+    (fixes https://github.com/bird-house/birdhouse-deploy/issues/610).
+
+[2.18.15](https://github.com/bird-house/birdhouse-deploy/tree/2.18.15) (2025-12-01)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- README: remind the user to source control `env.local` securely as it may contain passwords.
+
+## Fixes
+
+- Autodeploy broken due to new config variable precedence order.
+
+  Broken since `2.18.8` (https://github.com/bird-house/birdhouse-deploy/pull/600).
+
+  Example breakage scenario:
+
+  Autodeploy starts and calls `read_configs`, then git pull a newer
+  version of `env.local` (which might modify `EXTRA_CONF_DIRS` to enable
+  new components for example).  But since the new var precedence locked
+  all the values to the first call of `read_configs`, the new change to
+  `EXTRA_CONF_DIRS` (or any vars in `env.local`) never went into
+  effect at the end of the autodeploy process when we start the full
+  stack.
+
+  This is because `read_configs` returns all variables as environment
+  variables and the new variable precedence order gives environment
+  variables precedence higher than the values in `env.local`.  So after
+  the first call to `read_configs` (or `read_basic_configs_only`), all the
+  values are "locked" for all child processes even if they try to call
+  `read_configs` again to get the newest values from `env.local`.
+
+  The fix is to avoid getting these config variables as environment
+  variables which will avoid "locking" their values for child processes.
+
+- Autodeploy broken due to attempt to be compat with changing the location of `env.local` via `BIRDHOUSE_LOCAL_ENV`.
+
+  Broken since `2.18.9` (https://github.com/bird-house/birdhouse-deploy/pull/601).
+
+  It was working for the first run of autodeploy but on the next run, the value of
+  `BIRDHOUSE_LOCAL_ENV` in `optional-components/scheduler-job-autodeploy/config.yml`
+  is wrong !
+
+  Good value in first run:
+
+  `--volume /real/path/to/env.local:/tmp/birdhouse-local-env`
+
+  Bad value in subsequent run:
+
+  `--volume /tmp/birdhouse-local-env:/tmp/birdhouse-local-env`
+
+  This is because we override `--env BIRDHOUSE_LOCAL_ENV=/tmp/birdhouse-local-env` in
+  `optional-components/scheduler-job-autodeploy/config.yml.template` as env var so on
+  the subsequent runs the bad value persists because it is an env var.
+
+  This `BIRDHOUSE_LOCAL_ENV` is meant to be set "outside" the stack as env var
+  so there is nothing in the stack that will fix this value if it is bad.
+
+  The fix is to revert that attempt.  So autodeploy only supports changing the
+  location of `env.local` via symlink, or by manually adding the folder
+  containing the file `env.local` to `BIRDHOUSE_AUTODEPLOY_EXTRA_REPOS` if
+  `env.local` is set by `BIRDHOUSE_LOCAL_ENV` environment variable and not via
+  symlink.
+
+- One feature of autodeploy is broken due to a missing mapping in back-compat config var name change.
+
+  Broken since `2.4.0` but only if back-compat var name mode is required.
+
+  The `AUTODEPLOY_CODE_OWNERSHIP` old name mapping is missing in `BIRDHOUSE_BACKWARDS_COMPATIBLE_VARIABLES`.
+
+  Autodeploy is missing the `chown` step to the good code owner because it does
+  not "see" the value of the old variable name since the mapping to the new
+  variable name is missing.
+
+- Missing default value for `BIRDHOUSE_HTTP_ONLY` causing inconsistent behavior
+  when the var is used in `env.local` then removed from `env.local`.  The
+  behavior never revert back as if it has never been initially used in
+  `env.local`.  See [discussion](https://github.com/bird-house/birdhouse-deploy/pull/600#issuecomment-3528058708).
+
+
+[2.18.14](https://github.com/bird-house/birdhouse-deploy/tree/2.18.14) (2025-12-01)
+------------------------------------------------------------------------------------------------------------------
+
+## Fixes
+
+- Ensure Jupyterlab container healthchecks don't fail because of leftover files
+
+  Leftover files from Jupyterlab containers that didn't shut down properly could cause the
+  healthcheck to always fail. Old files are now removed when the container starts up so this is avoided.
+
+  The full explanation:
+
+  If a Jupyterlab container is not shut down properly then it does not have a chance to 
+  [clean up](https://github.com/jupyter-server/jupyter_server/blob/dd435c/jupyter_server/serverapp.py#L3152) 
+  old runtime files. These runtime files are stored in the user's home directory which is
+  persisted between containers as a bind-mount.
+
+  When the Jupyterlab container is created again, it will create new versions of some of these files. One of which
+  is the jpserver JSON files which contains [a URL used by the 
+  healthchecks](https://github.com/jupyter/docker-stacks/blob/3b8a79/images/base-notebook/docker_healthcheck.py#L27).
+  
+  This URL contains the hostname of the Jupyterlab container which is different each time a new container is created. 
+  Different files will have different hostnames, only one of which will be the hostname for the current container.
+
+  Since the [healthchecks](https://github.com/jupyter/docker-stacks/blob/3b8a79/images/base-notebook/docker_healthcheck.py#L27)
+  use `glob` which returns files in an arbitrary order, the healthcheck can easily choose an old file with an old hostname.
+  If that is the case, the healthcheck will always fail.
+
+
+[2.18.13](https://github.com/bird-house/birdhouse-deploy/tree/2.18.13) (2025-12-01)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Update `prometheus-log-parser` component to use version 1.1.1 of the log-parser
+
+  See changes for versions [1.1.0](https://github.com/DACCS-Climate/log-parser/releases/tag/v1.1.0) and 
+  [1.1.1](https://github.com/DACCS-Climate/log-parser/releases/tag/v1.1.1).
+
+  The most relevant changes to this project are support for parsing logs from streams (like stdout) and a
+  safer way to kill the running log-parser container.
+
+[2.18.12](https://github.com/bird-house/birdhouse-deploy/tree/2.18.12) (2025-11-25)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Add mechanism to set CPU and memory limits on Jupyterlab containers based on Magpie user or group name
+
+  Creates a new variable `JUPYTERHUB_RESOURCE_LIMITS` which sets resource limits for JupyterLab containers per 
+  Magpie user or group.
+ 
+  The value for this variable is a whitespace delimited string. Each section is delimited by colons (:) 
+  where the first element is either `group` or `user` and the second element is the name of the user or group
+  to apply the limits to. The rest are resource limits of the form `limit=amount`. For example:
+
+  ```sh
+  export JUPYTERHUB_RESOURCE_LIMITS="
+     user:user1:mem_limit=30G
+     group:group1:mem_limit=10G:cpu_limit=1
+     group:group2:cpu_limit=3
+  "
+  ```
+
+  Supported limits are: 
+  [mem_limit](https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html#dockerspawner.DockerSpawner.mem_limit) 
+  and [cpu_limit](https://jupyterhub-dockerspawner.readthedocs.io/en/latest/api/index.html#dockerspawner.DockerSpawner.cpu_limit). 
+
+  Note that this will not create the groups in Magpie, that must be done by some other means (through configuration files or the
+  Magpie API or UI).
+
+  Note that if a user belongs to multiple groups, later values in `JUPYTERHUB_RESOURCE_LIMITS` will take
+  precedence. For example, if a user named user1 belongs to group1 and group2 then the following limits will apply:
+
+  - mem_limit=10G (because group1 is later in the list)
+  - cpu_limit=3 (because group2 is later in the list)
+
+[2.18.11](https://github.com/bird-house/birdhouse-deploy/tree/2.18.11) (2025-11-13)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Update `$schema` in all `service.config.json.template` files to version 1.3.0
+
+  Version [1.3.0](https://github.com/DACCS-Climate/Marble-node-registry/releases/tag/1.3.0) replaces "keywords"
+  with "types" and allow keywords to be any string.
+
+- Fix `bin/birdhouse configs --default` flag usage description
+
+  Previously the description made it seem like the local environment file would __not__ be read if this
+  option was specified. In fact, it's the components that won't be read.
+
+  Also rename the `--default` flag to `--basic` to reflect the function it calls (`read_basic_configs_only`)
+  but keep the old version for backwards compatibility.
+
+[2.18.10](https://github.com/bird-house/birdhouse-deploy/tree/2.18.10) (2025-11-12)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Allow each service to specify values for `Access-Control-Allow-Origin`
+
+  Previously, if a `location` block in the `nginx` configuration for a given service included the cors helper
+  configuration (with `include /etc/nginx/conf.d/cors.include;`) then all origins were allowed by default.
+
+  This was done by setting the header `Access-Control-Allow-Origin: *` which works well but is a bit too permissive
+  since it allowed __all__ origins.
+
+  This change introduces a mechanism to specify specific additional allowed origins by setting the 
+  `$access_control_allow_origin` nginx variable in the `location` block before including the `cors.include` file.
+
+  For example:
+
+  ```shell
+  set $access_control_allow_origin http://example.com;
+  include /etc/nginx/conf.d/cors.include;
+  ```
+
+  will set the value of the `Access-Control-Allow-Origin` response header to `http://example.com`.
+
+  By default, the header value will be `*` if `$access_control_allow_origin` is not set (to maintain backwards
+  compatibility).
+
+  To specify multiple allowed origins, use a `map` directive (see the implementation for `components/stac` for an
+  example).
+
+- Set allowed CORS origins for `stac` through an environment variable
+
+  This change implements this flexibility for the `components/stac` component. By setting the `STAC_CORS_ORIGINS`
+  variable a user can specify allowed origins for responses from the `components/stac` component.
+
+  For example, setting the following:
+  
+  ```shell
+  export STAC_CORS_ORIGINS='https://example.com ~^https?://(www\.)?other\.example\.com$' 
+  ```
+
+  then requests from https://example.com and http://other.example.com will get a response with the 
+  `Access-Control-Allow-Origin header` set to their origin, but http://example.ca will not.
+
+  Note that this breaks backwards compatibility slightly since previously all origins were allowed for `/stac` by
+  default. To match all origins and keep the backwards compatible behaviour you can set:
+
+  ```shell
+  export STAC_CORS_ORIGINS='~.*' 
+  ```
+
+[2.18.9](https://github.com/bird-house/birdhouse-deploy/tree/2.18.9) (2025-11-10)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Centralize management of `docker-compose` image version needed by `birdhouse-compose.sh` script.
+
+  To simplify future version update and to easily shared by other future components.
+
+  Backward compatible change:
+  * Added config variables
+    * `BIRDHOUSE_COMPOSE_DOCKER`
+    * `BIRDHOUSE_COMPOSE_VERSION`
+    * `BIRDHOUSE_COMPOSE_IMAGE`
+
+- Update `DOCKER_CLI_IMAGE` version.
+
+  Simply to match `BIRDHOUSE_COMPOSE_IMAGE` version.  Previous version was not
+  causing any problems.
+
+- Centralized usage of `DOCKER_CLI_IMAGE` in all scheduler jobs.
+
+  To ease future version update and for all jobs to be consistent.
+
+  Backward compatible change:
+  * Added config variables
+    * `DOCKER_CLI_DOCKER`
+    * `DOCKER_CLI_VERSION`
+
+- scheduler-job-autodeploy: make compatible with change of `BIRDHOUSE_LOCAL_ENV` via env var and not symlink
+
+  See https://github.com/bird-house/birdhouse-deploy/pull/597#issuecomment-3428179549.
+
+## Fixes
+
+- `scheduler-job-deploy_xclim_testdata` wrongly used variables from `scheduler-job-deploy_raven_testdata`.
+
+- scheduler-jobs: fix deploy raven and xclim testdata missing logs, forgot delayed eval
+
+
+[2.18.8](https://github.com/bird-house/birdhouse-deploy/tree/2.18.8) (2025-10-30)
+------------------------------------------------------------------------------------------------------------------
+
+## Changes
+
+- Allow configuration options to be set as environment variables
+
+  Previously configuration options must be set in the local environment file (`birdhouse/env.local` by default).
+  This change allows configuration options to be set as environment variables which would take precedence over those
+  set in the local environment file.
+
+  For example, you can now set the `BIRDHOUSE_FQDN` variable when starting the stack like so:
+
+  ```sh
+  BIRDHOUSE_FQDN=myhost.example.com bin/birdhouse compose up -d
+
+  # OR 
+
+  export BIRDHOUSE_FQDN=myhost.example.com
+  bin/birdhouse compose up -d
+  ```
+
+  This change has the following advantages:
+
+  - flexibility: the user has more options for how they can customize their deployment
+  - good dev-ops: this change further aligns birdhouse with the [12 factor app principles](https://12factor.net/), 
+                  specifically the [Config](https://12factor.net/config) principle which recommends that configuration 
+                  options be settable as environment variables.
+  - security: sensitive settings (credentials, secrets) can be set as environment variables, ensuring that they are 
+              not easily visible in the plain text local environment file.
+  - consistency: users can store non-sensitive settings in the local environment file and share that file freely without
+                 worrying that sensitive setting will be leaked.
 
 
 [2.18.7](https://github.com/bird-house/birdhouse-deploy/tree/2.18.7) (2025-10-17)

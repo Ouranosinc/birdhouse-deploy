@@ -95,8 +95,9 @@ discover_env_local() {
     # autodeploy will fail.
     # Docker volume-mount will need the real dir of the file for symlink to
     # resolve inside the container.
-    BIRDHOUSE_LOCAL_ENV_REAL_PATH="$(realpath "${BIRDHOUSE_LOCAL_ENV}")"
-    BIRDHOUSE_LOCAL_ENV_REAL_DIR="$(dirname "${BIRDHOUSE_LOCAL_ENV}_REAL_PATH")"
+    # Need to be environment variable for use in template expansion.
+    export BIRDHOUSE_LOCAL_ENV_REAL_PATH="$(realpath "${BIRDHOUSE_LOCAL_ENV}")"
+    export BIRDHOUSE_LOCAL_ENV_REAL_DIR="$(dirname "${BIRDHOUSE_LOCAL_ENV}_REAL_PATH")"
 }
 
 
@@ -375,6 +376,7 @@ check_required_vars() {
 # in DELAYED_EVAL list need to call this function to actually resolve the
 # value of each var in DELAYED_EVAL list.
 process_delayed_eval() {
+    export _BIRDHOUSE_ALREADY_PROCESSED_DELAYED_EVAL=True
     ALREADY_EVALED=''
     for i in ${DELAYED_EVAL}; do
         if echo "${ALREADY_EVALED}" | grep -qE "^\s*$i\s*$"; then
@@ -383,6 +385,11 @@ process_delayed_eval() {
         fi
         v="`eval "echo \\"\\$${i}\\""`"  # should keep new lines and leading empty spaces
         value=`eval "echo \"${v}\""`
+        if [ "$?" -ne 0 ] && [ "$_BIRDHOUSE_ALREADY_PROCESSED_DELAYED_EVAL" = "True" ]; then
+          log WARN -n "Delayed eval variable ${i} has already been processed. Unable to re-process this variable. "
+          log WARN -p "This is usually caused by loading the configuration settings multiple times. Please only load them once."
+          value="$v"  # set the value back because it was already set properly
+        fi
         eval 'export ${i}="${value}"'
         log DEBUG "delayed eval '$(env | grep -e "^${i}=")'"
         ALREADY_EVALED="
@@ -459,9 +466,36 @@ set_backwards_compatible_as_default() {
   fi
 }
 
+# Record all currently exported environment variables and store them in the __BIRDHOUSE_PROCESS_ENV
+# variable. Calling reset_process_env later will re-export all these variables, setting them back to their
+# original value. See reset_process_env for an example.
+stage_process_env() {
+  __BIRDHOUSE_PROCESS_ENV="$(export -p)"
+}
+
+# Re-export and set all environment variables that were exported when stage_process_env was last called. This 
+# effectively resets these variables to the values that they had when stage_process_env was last called.
+#
+# Note that this will not unset variables that were not exported when stage_process_env was last called.
+#
+# For example:
+# 
+# export X=10
+# stage_process_env
+# echo $X  # prints 10
+# X=11
+# export Y=12
+# echo $X  # prints 11
+# reset_process_env
+# echo $X  # prints 10
+# echo $Y  # prints 12
+reset_process_env() {
+  eval "${__BIRDHOUSE_PROCESS_ENV}"
+}
 
 ### Similar code between read_configs() and read_basic_configs_only().
 _read_basic_configs_pre() {
+    stage_process_env
     set_backwards_compatible_as_default
     discover_compose_dir
     discover_env_local
@@ -470,8 +504,9 @@ _read_basic_configs_pre() {
 
 
 _read_basic_configs_post() {
-    read_env_local  # again to override components default.env, need discover_env_local
-    set_old_backwards_compatible_variables  # after read_env_local to use updated value and not default value
+    read_env_local  # override default env (for a second time if called from read_configs), needs discover_env_local to run first
+    reset_process_env  # override local env and default env with variables declared in the calling process' environment, needs stage_process_env to run first
+    set_old_backwards_compatible_variables  # after read_env_local to use updated value and not default value for backwards compatible variables
     process_backwards_compatible_variables
     check_default_vars
     process_delayed_eval
@@ -485,7 +520,8 @@ read_configs() {
     _read_basic_configs_pre
 
     ### This section is different than read_basic_configs_only() below, the rest should be IDENTICAL.
-    read_env_local  # for BIRDHOUSE_EXTRA_CONF_DIRS and BIRDHOUSE_DEFAULT_CONF_DIRS, need discover_env_local
+    read_env_local  # for BIRDHOUSE_EXTRA_CONF_DIRS and BIRDHOUSE_DEFAULT_CONF_DIRS, needs discover_env_local to run first
+    reset_process_env  # use BIRDHOUSE_EXTRA_CONF_DIRS and BIRDHOUSE_DEFAULT_CONF_DIRS if they're declared in the calling process' environment, needs stage_process_env to run first
     process_backwards_compatible_variables pre-components
     read_components_default_env  # uses BIRDHOUSE_EXTRA_CONF_DIRS and BIRDHOUSE_DEFAULT_CONF_DIRS, sets ALL_CONF_DIRS
     ### END This section is different than read_basic_configs_only() below, the rest should be IDENTICAL.

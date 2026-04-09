@@ -15,6 +15,11 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+[//]: # (list changes here, using '-' for each new entry, remove this when items are added)
+
+[2.26.0](https://github.com/bird-house/birdhouse-deploy/tree/2.26.0) (2026-04-09)
+------------------------------------------------------------------------------------------------------------------
+
 ## Fixes
 
 - Catch delayed eval variables that get processed multiple times
@@ -33,6 +38,22 @@
   of running the delayed eval process multiple times will always result in `X='"'`.
 
 ## Changes
+
+- Mount THREDDS data to S3
+
+  Automatically mount data in THREDDS to the S3 service when the `optional-components/mount-thredds-to-s3`
+  component is enabled. The S3 service must be enabled as well.
+
+  This creates a new bucket named `thredds` by default (can be changed by setting the `THREDDS_S3_BUCKET_NAME`
+  variable) which contains a symlink to the thredds data which is mounted separately to the `s3` container.
+
+  A symlink is used so that the THREDDS data itself does not get added as a subdirectory of S3 data which is 
+  itself mounted to the S3 component from a bind mount on the host machine.
+
+  A user accessing this data through S3 has the same permissions as if they were accessing the file through
+  THREDDS. Users are currently not permitted to list the files in the `thredds` bucket since there is no good
+  way to check whether the user has permission to list specific files according to the Magpie resource
+  permissions for THREDDS.
 
 - Better management of `service-config.json` files
 

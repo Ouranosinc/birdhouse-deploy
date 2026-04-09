@@ -1,0 +1,5 @@
+services:
+  s3:
+    volumes:
+      - ${THREDDS_DATASET_LOCATION_ON_HOST}:/thredds-data/${THREDDS_DATASET_URL_PATH}
+      - ${THREDDS_SERVICE_DATA_LOCATION_ON_HOST}:/thredds-data/${THREDDS_SERVICE_DATA_URL_PATH}

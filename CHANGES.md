@@ -78,6 +78,14 @@
   guarantees that they can be created since the user running docker will have permission to create these as bind
   mounts. 
 
+- Add optional component to mount a robots.txt file
+
+  This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
+  scrape this website.
+
+  By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
+  robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
+
 [2.25.0](https://github.com/bird-house/birdhouse-deploy/tree/2.25.0) (2026-03-17)
 ------------------------------------------------------------------------------------------------------------------
 

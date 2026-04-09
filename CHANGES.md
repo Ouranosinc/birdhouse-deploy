@@ -15,6 +15,35 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+## Changes
+
+- GeoServer: upgrade to 2.27.2 to fix vulnerabilities
+
+  See:
+  * https://github.com/geoserver/geoserver/security/advisories/GHSA-r4hf-r8gj-jgw2
+  * https://github.com/geoserver/geoserver/security/advisories/GHSA-jm79-7xhw-6f6f
+  * https://github.com/geoserver/geoserver/security/advisories/GHSA-jj54-8f66-c5pc
+
+  As for the docker image changes, unfortunately there was no github tag for our
+  existing `2.25.2--v2024.06.25` so this is the best approximate diff we can have
+  https://github.com/kartoza/docker-geoserver/compare/v2.25.4--2024.11.17--e7732f7...v2.27.2--2025.08.05--f411524
+
+  `fix-geoserver-data-dir-perm` is not required anymore, it has been disabled
+  but kept for backward compatibility if we ever need to rollback to older
+  versions of GeoServer.  If you need to rollback to any versions before 2.25.2
+  you might need to run `fix-geoserver-data-dir-perm` manually, only if it is
+  required.  Do not run it if not required. It takes lots of time if you have
+  lots of data.
+
+  Please **backup** your GeoServer data before the upgrade.  If the upgrade
+  fails, you won't be able to rollback.  If you have upgrade problem, please
+  look at
+  [kartoza/docker-geoserver#760](https://github.com/kartoza/docker-geoserver/issues/760).
+
+
+[2.26.0](https://github.com/bird-house/birdhouse-deploy/tree/2.26.0) (2026-04-09)
+------------------------------------------------------------------------------------------------------------------
+
 ## Fixes
 
 - Catch delayed eval variables that get processed multiple times
@@ -33,6 +62,22 @@
   of running the delayed eval process multiple times will always result in `X='"'`.
 
 ## Changes
+
+- Mount THREDDS data to S3
+
+  Automatically mount data in THREDDS to the S3 service when the `optional-components/mount-thredds-to-s3`
+  component is enabled. The S3 service must be enabled as well.
+
+  This creates a new bucket named `thredds` by default (can be changed by setting the `THREDDS_S3_BUCKET_NAME`
+  variable) which contains a symlink to the thredds data which is mounted separately to the `s3` container.
+
+  A symlink is used so that the THREDDS data itself does not get added as a subdirectory of S3 data which is 
+  itself mounted to the S3 component from a bind mount on the host machine.
+
+  A user accessing this data through S3 has the same permissions as if they were accessing the file through
+  THREDDS. Users are currently not permitted to list the files in the `thredds` bucket since there is no good
+  way to check whether the user has permission to list specific files according to the Magpie resource
+  permissions for THREDDS.
 
 - Better management of `service-config.json` files
 
@@ -62,29 +107,13 @@
   guarantees that they can be created since the user running docker will have permission to create these as bind
   mounts. 
 
-- GeoServer: upgrade to 2.27.2 to fix vulnerabilities
+- Add optional component to mount a robots.txt file
 
-  See:
-  * https://github.com/geoserver/geoserver/security/advisories/GHSA-r4hf-r8gj-jgw2
-  * https://github.com/geoserver/geoserver/security/advisories/GHSA-jm79-7xhw-6f6f
-  * https://github.com/geoserver/geoserver/security/advisories/GHSA-jj54-8f66-c5pc
+  This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
+  scrape this website.
 
-  As for the docker image changes, unfortunately there was no github tag for our
-  existing `2.25.2--v2024.06.25` so this is the best approximate diff we can have
-  https://github.com/kartoza/docker-geoserver/compare/v2.25.4--2024.11.17--e7732f7...v2.27.2--2025.08.05--f411524
-
-  `fix-geoserver-data-dir-perm` is not required anymore, it has been disabled
-  but kept for backward compatibility if we ever need to rollback to older
-  versions of GeoServer.  If you need to rollback to any versions before 2.25.2
-  you might need to run `fix-geoserver-data-dir-perm` manually, only if it is
-  required.  Do not run it if not required. It takes lots of time if you have
-  lots of data.
-
-  Please **backup** your GeoServer data before the upgrade.  If the upgrade
-  fails, you won't be able to rollback.  If you have upgrade problem, please
-  look at
-  [kartoza/docker-geoserver#760](https://github.com/kartoza/docker-geoserver/issues/760).
-
+  By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
+  robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
 
 [2.25.0](https://github.com/bird-house/birdhouse-deploy/tree/2.25.0) (2026-03-17)
 ------------------------------------------------------------------------------------------------------------------

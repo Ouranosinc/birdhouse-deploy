@@ -785,3 +785,48 @@ Note that leaving any of these limits unset will default to allowing the user fu
                   device_ids: ["0", "1"]
 
 .. _MPS: https://docs.nvidia.com/deploy/mps/index.html
+
+Mount THREDDS to S3
+-------------------
+
+Automatically mount data in THREDDS to the S3 services.
+
+This creates a new bucket named ``thredds`` by default (can be changed by setting the 
+``THREDDS_S3_BUCKET_NAME`` variable) which contains a symlink to the thredds data which is mounted separately to 
+the `s3` container.
+
+A symlink is used so that the THREDDS data itself does not get added as a subdirectory of S3 data which is itself 
+mounted to the S3 component from a bind mount on the host machine.
+
+A user accessing this data through S3 has the same permissions as if they were accessing the file through THREDDS. 
+Users are currently not permitted to list the files in the ``thredds`` bucket since there is no good way to check 
+whether the user has permission to list specific files according to the Magpie resource permissions for THREDDS.
+
+Access permissions for the ``thredds`` bucket are determined by the ``thredds`` resource rules in Magpie.
+If an admin sets an access rule for the ``thredds`` bucket using the ``s3`` resource rules in Magpie, they will be
+ignored.
+
+Add ``./optional-components/mount-thredds-to-s3`` to ``BIRDHOUSE_EXTRA_CONF_DIRS`` to enable this component.
+
+
+Robots
+------
+
+This adds a robots.txt file to the birdhouse stack which can be used to ask bots and web crawlers to not
+scrape this website.
+
+By default it uses a file that disallows crawling by most major AI crawler bots. To specify a custom
+robots.txt file set the absolute path to the file as the ``ROBOTS_TXT_FILE`` configuration variable.
+
+For additional information regarding creating a custom robots.txt file see:
+
+- `RFC 9309 <rfc9309>`_
+- `Interpreting the robots.txt file <google_robots_txt>`_
+
+To enable this optional-component:
+
+- Edit ``env.local`` (a copy of `env.local.example`_)
+- Add ``./optional-components/robots`` to ``BIRDHOUSE_EXTRA_CONF_DIRS``.
+
+.. _rfc9309: https://www.rfc-editor.org/rfc/rfc9309.html
+.. _google_robots_txt: https://developers.google.com/crawling/docs/robots-txt/robots-txt-spec

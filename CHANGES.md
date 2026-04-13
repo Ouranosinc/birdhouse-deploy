@@ -15,7 +15,15 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
-[//]: # (list changes here, using '-' for each new entry, remove this when items are added)
+## Fixes
+
+- New `./optional-components/robots` in `2.26.0` broke the stack
+
+  Enabling `./optional-components/robots` result in the error `services must be a mapping` when
+  bringing up the stack with `birdhouse compose up -d`.
+
+  The new config var `ROBOTS_TXT_FILE` is not an env var so it is not visible to `docker compose`.
+
 
 [2.26.1](https://github.com/bird-house/birdhouse-deploy/tree/2.26.1) (2026-04-09)
 ------------------------------------------------------------------------------------------------------------------

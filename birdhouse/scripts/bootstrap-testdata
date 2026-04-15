@@ -1,4 +1,4 @@
-#!/bin/sh -x
+#!/usr/bin/env sh
 # Bootstrap minimum test data on Thredds.
 # To run testsuite in https://github.com/Ouranosinc/PAVICS-e2e-workflow-tests.
 #
@@ -21,6 +21,8 @@ if [ -f "${COMPOSE_DIR}/read-configs.include.sh" ]; then
     read_configs
 fi
 
+BOOTSTRAP_TESTDATA_XTRACE_STATE=$(set +o | grep xtrace)
+set -x
 
 if [ -z "${DATASET_ROOT}" ]; then
     # Default for when unable to source read-configs.include.sh (ie when
@@ -58,3 +60,7 @@ for afile in ${FILE_LIST}; do
         set +e
     fi
 done
+
+# reset caller state
+set +x
+eval "${BOOTSTRAP_TESTDATA_XTRACE_STATE}"

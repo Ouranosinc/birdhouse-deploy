@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # Create authtest user for testsuite at
 # https://github.com/Ouranosinc/PAVICS-e2e-workflow-tests.
 #
@@ -25,7 +25,13 @@ users:
      group: thredds-secure-authtest-group
 __OEF__
 
+CREATE_MAGPIE_AUTHTEST_USER_XTRACE_STATE=$(set +o | grep xtrace)
 set -x
+
 cat "${TMP_CONFIG_FILE}"
 MAGPIE_CLI_CONF="${TMP_CONFIG_FILE}" "${COMPOSE_DIR}/scripts/create-magpie-users" "$@"
 rm -v "${TMP_CONFIG_FILE}"
+
+# reset caller state
+set +x
+eval "${CREATE_MAGPIE_AUTHTEST_USER_XTRACE_STATE}"

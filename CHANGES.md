@@ -24,6 +24,12 @@
 
   The new config var `ROBOTS_TXT_FILE` is not an env var so it is not visible to `docker compose`.
 
+- Display warning message for proxy log rotation properly
+
+  Since the `./optional-components/proxy-log-volume` can be enabled as a component dependency of
+  `./components/canarie-api` we should be checking for it's presence in `ALL_CONF_DIRS`. Previously
+  we were checking for it in `BIRDHOUSE_EXTRA_CONF_DIRS` which is manually set by the user and doesn't
+  include dynamically added components that are dependants of others.
 
 [2.26.1](https://github.com/bird-house/birdhouse-deploy/tree/2.26.1) (2026-04-09)
 ------------------------------------------------------------------------------------------------------------------

@@ -15,7 +15,14 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
-[//]: # (list changes here, using '-' for each new entry, remove this when items are added)
+## Fixes
+
+- Display warning message for proxy log rotation properly
+
+  Since the `./optional-components/proxy-log-volume` can be enabled as a component dependency of
+  `./components/canarie-api` we should be checking for it's presence in `ALL_CONF_DIRS`. Previously
+  we were checking for it in `BIRDHOUSE_EXTRA_CONF_DIRS` which is manually set by the user and doesn't
+  include dynamically added components that are dependants of others.
 
 [2.26.1](https://github.com/bird-house/birdhouse-deploy/tree/2.26.1) (2026-04-09)
 ------------------------------------------------------------------------------------------------------------------

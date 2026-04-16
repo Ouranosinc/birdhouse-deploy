@@ -14,6 +14,8 @@ THIS_DIR="$(dirname "${THIS_FILE}")"
 COMPOSE_DIR="${COMPOSE_DIR:-$(dirname "${THIS_DIR}")}"
 SCRIPTS_DIR="${COMPOSE_DIR}/scripts"
 
+set -x
+
 # Populate test .nc file on Thredds.
 # Need to open temporary Thredds "testdata/secure/" on Birdhouse production to anonymous group.
 # Need write-access to DATASET_ROOT (/data/datasets/).

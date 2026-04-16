@@ -15,6 +15,11 @@
 [Unreleased](https://github.com/bird-house/birdhouse-deploy/tree/master) (latest)
 ------------------------------------------------------------------------------------------------------------------
 
+[//]: # (list changes here, using '-' for each new entry, remove this when items are added)
+
+[2.26.4](https://github.com/bird-house/birdhouse-deploy/tree/2.26.4) (2026-04-16)
+------------------------------------------------------------------------------------------------------------------
+
 ## Fixes
 
 - Avoid excessive command logging from `birdhouse/scripts/bootstrap-instance-for-testsuite` and related scripts.

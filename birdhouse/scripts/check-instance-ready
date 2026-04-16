@@ -18,9 +18,7 @@ if [ -f "${COMPOSE_DIR}/read-configs.include.sh" ]; then
     read_configs
 fi
 
-CHECK_INSTANCE_READY_XTRACE_STATE=$(set +o | grep xtrace)
 set -x
-
 curl --include --silent "${BIRDHOUSE_PROXY_SCHEME}://${BIRDHOUSE_FQDN}/canarie/node/service/stats" | head
 
 set +x
@@ -45,7 +43,3 @@ Will retry only once more and exit immediately.
     sleep 65
     curl --include --silent "${BIRDHOUSE_PROXY_SCHEME}://${BIRDHOUSE_FQDN}/canarie/node/service/stats" | head
 fi
-
-# reset caller state
-set +x
-eval "${CHECK_INSTANCE_READY_XTRACE_STATE}"

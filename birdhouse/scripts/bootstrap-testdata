@@ -21,7 +21,6 @@ if [ -f "${COMPOSE_DIR}/read-configs.include.sh" ]; then
     read_configs
 fi
 
-BOOTSTRAP_TESTDATA_XTRACE_STATE=$(set +o | grep xtrace)
 set -x
 
 if [ -z "${DATASET_ROOT}" ]; then
@@ -60,7 +59,3 @@ for afile in ${FILE_LIST}; do
         set +e
     fi
 done
-
-# reset caller state
-set +x
-eval "${BOOTSTRAP_TESTDATA_XTRACE_STATE}"

@@ -1,0 +1,5 @@
+services:
+  proxy:
+    volumes:
+      - ./optional-components/robots/config/proxy/conf.extra-service.d:/etc/nginx/conf.extra-service.d/robots:ro
+      - ${ROBOTS_TXT_FILE}:/static/robots.txt:ro

@@ -1,0 +1,5 @@
+services:
+  proxy:
+    volumes:
+      - ./optional-components/mount-thredds-to-s3/config/proxy/conf.extra-service.d:/etc/nginx/conf.extra-service.d/mount-thredds-to-s3:ro
+      - ./optional-components/mount-thredds-to-s3/config/proxy/conf.extra-directives.d:/etc/nginx/conf.extra-directives.d/mount-thredds-to-s3:ro

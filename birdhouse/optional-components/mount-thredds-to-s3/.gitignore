@@ -1,0 +1,2 @@
+config/proxy/conf.extra-service.d/mount-thredds-to-s3.conf
+config/proxy/conf.extra-directives.d/mount-thredds-to-s3.conf

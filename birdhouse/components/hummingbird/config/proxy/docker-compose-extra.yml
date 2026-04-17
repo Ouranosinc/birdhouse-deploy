@@ -1,4 +1,4 @@
 services:
   proxy:
     volumes:
-      - ./components/hummingbird/service-config.json:/static/services/hummingbird.json:ro
+      - ./components/hummingbird/service-config.json:/static-services/hummingbird.json:ro

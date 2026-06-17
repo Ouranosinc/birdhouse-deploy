@@ -12,6 +12,7 @@ services:
       MAGPIE_WEBHOOKS_CONFIG_PATH: "${MAGPIE_WEBHOOKS_CONFIG_PATH}"
       MAGPIE_POSTGRES_HOST: postgres-magpie
       MAGPIE_PORT: 2001
+      MAGPIE_COOKIE_NAME: "${MAGPIE_COOKIE_NAME}"
       FORWARDED_ALLOW_IPS: "*"
     env_file:
       - ./components/magpie/postgres-credentials.env
@@ -47,7 +48,7 @@ services:
       - ./components/magpie/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
     restart: always
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "$${POSTGRES_USER}", "-d", "$${POSTGRES_DB}"]
+      test: pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
       interval: 60s
       timeout: 5s
       retries: 3

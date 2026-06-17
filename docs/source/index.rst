@@ -18,9 +18,10 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   deployment
+   birdhouse/README
    birdhouse/components/README
    birdhouse/optional-components/README
+   birdhouse/deprecated-components/README
    data_catalog
    migration_guide
    contributing
@@ -35,4 +36,3 @@ Indices and tables
   * :ref:`modindex`
 
 * :ref:`search`
-

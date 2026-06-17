@@ -8,16 +8,14 @@ assignees: tlvu, fmigneault, mishaschwartz
 
 ## Questions
 
-
 <!-- Please provide your question details. -->
 
 
 
 ## References
 
-<!-- 
-  Additional screenshots or links to help identify the issue?
--->
+<!-- Additional screenshots or links to help identify the issue? -->
+
 
 
 ## Environment
@@ -25,6 +23,6 @@ assignees: tlvu, fmigneault, mishaschwartz
 | Information           | Value
 | --------------------- | --------------------------------------------------------------
 | Server/Platform URL   | <!-- e.g: https://pavics.ouranos.ca -->
-| Version Tag/Commit    | <!-- 1.2.3 --> 
+| Version Tag/Commit    | <!-- 1.2.3 -->
 | Related issues/PR     | <!-- #<issue> #<pr> -->
 | Related components    | <!-- thredds, magpie, monitoring, etc. -->
